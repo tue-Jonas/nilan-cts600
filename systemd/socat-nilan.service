@@ -1,0 +1,24 @@
+# /etc/systemd/system/socat-nilan.service
+#
+# ALTERNATIVE / OPTIONAL deployment. The primary (compose) stack runs socat as
+# a supervised sidecar inside the nilan-api container, so this host unit is NOT
+# required for the containerized design. Use it only if you run a host-side
+# consumer (e.g. Home Assistant on the host, or nilan-api outside Docker) that
+# needs /dev/ttyNILAN on the host. Verbatim from the TUE-16 firmware doc.
+#
+# Creates virtual serial /dev/ttyNILAN <-> ESP32 raw-TCP stream-server.
+# Set ESP_IP to the (static) bridge IP before `systemctl enable --now socat-nilan`.
+[Unit]
+Description=socat virtual serial for Nilan CTS600 ESP bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=ESP_IP=192.168.1.50
+Environment=ESP_PORT=6638
+ExecStart=/usr/bin/socat -d -d pty,link=/dev/ttyNILAN,raw,echo=0,mode=666 tcp:${ESP_IP}:${ESP_PORT}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

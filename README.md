@@ -1,0 +1,85 @@
+# Nilan CTS600 — Server Stack (TUE-22)
+
+Server-side "brain" for the Nilan CTS600 WLAN control (parent: TUE-16). The
+ESP32 is only a transparent **raw serial↔TCP tunnel**; the CTS600 custom
+protocol is driven here by **frodef**'s `CTS600` class over a serial device,
+and exposed as the REST + MQTT contract from TUE-16 plan §8.
+
+```
+Nilan ── RS485 ──> ESP32 (raw TCP :6638) ──WLAN──> [ socat ─> /dev/ttyNILAN ─> frodef ] ─> REST + MQTT
+```
+
+## Architecture decision
+
+Chose **standalone frodef core + thin FastAPI/MQTT wrapper** (plan §7 sanctioned
+alternative) over full Home Assistant:
+
+- The §8 contract (`/api/*` + `nilan/...` topics) is custom; HA would still need
+  a shim to remap its native API/MQTT-discovery topics to it. The wrapper
+  implements §8 directly with less total glue.
+- Far lighter on `tj-lt` (OOM-prone: paperclip + wameling + task-inbox already
+  resident). Whole stack is capped well under 0.5 GB vs HA's ~1–2 GB.
+- `frodef`'s protocol library (`vendor/nilan_cts600.py`, pinned commit in
+  `vendor/FRODEF_COMMIT.txt`) imports cleanly standalone, incl. `CTS600Mockup`.
+
+Reversible: if the board prefers full HA, frodef is its native HACS integration;
+the socat/broker/proxy layers here are reused as-is.
+
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `vendor/nilan_cts600.py` | Pinned frodef CTS600 protocol lib (incl. mockup) |
+| `app/nilan_api.py` | FastAPI REST + MQTT wrapper (implements plan §8) |
+| `app/Dockerfile`, `app/entrypoint.sh` | API image; entrypoint runs socat sidecar in real mode |
+| `docker-compose.yml` | `mosquitto` + `nilan-api` + `caddy` (auth proxy) |
+| `mosquitto/` | broker config + `passwd` (gitignored) |
+| `caddy/Caddyfile` | reverse proxy + basic auth on `:8643` |
+| `env/nilan.env(.example)` | config + secrets (`.env` gitignored) |
+| `systemd/socat-nilan.service` | OPTIONAL host-side socat (only for a host consumer; container has its own) |
+
+## Bring-up NOW (no hardware — mockup)
+
+```bash
+cd ~/nilan-cts600
+cp env/nilan.env.example env/nilan.env      # NILAN_MOCKUP=1 by default
+# secrets:
+PW=$(openssl rand -hex 12)
+docker run --rm -v "$PWD/mosquitto:/m" eclipse-mosquitto:2 mosquitto_passwd -b -c /m/passwd nilan "$PW"
+# mosquitto_passwd writes the file 0600 root; the in-container mosquitto user must read it:
+docker run --rm -v "$PWD/mosquitto:/m" --entrypoint sh eclipse-mosquitto:2 -c 'chmod 0644 /m/passwd'
+sed -i "s/^MQTT_PASS=.*/MQTT_PASS=$PW/" env/nilan.env
+HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$PW")
+# put $HASH into caddy/Caddyfile (basic_auth nilan <hash>)
+docker compose up -d --build
+curl -s localhost:8642/api/status | jq      # via api directly (or :8643 w/ basic auth via caddy)
+```
+
+## Go live (ESP bridge installed)
+
+When Wattson reports the live/static ESP IP on TUE-16:
+
+```bash
+cd ~/nilan-cts600
+sed -i 's/^NILAN_MOCKUP=.*/NILAN_MOCKUP=0/' env/nilan.env
+sed -i 's/^ESP_IP=.*/ESP_IP=<bridge-ip>/'  env/nilan.env
+docker compose up -d
+docker compose logs -f nilan-api   # expect socat tunnel + frodef reads T15/display
+curl -s localhost:8642/api/status | jq    # t_room (T15) plausible, fan_level/mode/setpoint present
+```
+
+Then run the §9 control verification (fan 1→2→3, mode, setpoint set+readback) and
+confirm the provisional `NILAN_T_SUPPLY_KEY`/`NILAN_T_EXHAUST_KEY` mapping against
+the unit's register dump (TUE-16 §11).
+
+## Contract (plan §8)
+
+| Method | Endpoint / topic | Body / payload |
+|---|---|---|
+| GET | `/api/status` | `{t_room,t_supply,t_exhaust,fan_level,mode,setpoint,...}` |
+| POST | `/api/fan` | `{"level":0-4}` (0=off) |
+| POST | `/api/mode` | `{"mode":"auto\|heat\|cool\|off"}` |
+| POST | `/api/temp` | `{"setpoint":5-30}` |
+| MQTT sub | `nilan/fan/set`,`nilan/mode/set`,`nilan/temp/set` | as above (raw value or JSON) |
+| MQTT pub | `nilan/state` (retained) | JSON, same shape as `/api/status` |
+| MQTT pub | `nilan/availability` (retained, LWT) | `online`/`offline` |

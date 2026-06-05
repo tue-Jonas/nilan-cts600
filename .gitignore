@@ -1,0 +1,5 @@
+env/nilan.env
+mosquitto/passwd
+caddy/Caddyfile.local
+*.log
+__pycache__/

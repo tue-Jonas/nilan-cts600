@@ -1,0 +1,66 @@
+# Nilan CTS600 server-side stack (TUE-22).
+# local-first: only the Caddy reverse proxy is meant to be LAN/WAN exposed;
+# the API and broker bind to the internal compose network.
+#
+# Bring-up now (no hardware): NILAN_MOCKUP=1 in env/nilan.env -> full REST+MQTT
+# contract works against the frodef mockup. Once the ESP bridge is live, set
+# NILAN_MOCKUP=0 and ESP_IP=<bridge ip> and `docker compose up -d`.
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: nilan-mosquitto
+    restart: unless-stopped
+    mem_limit: 96m
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - mosquitto-data:/mosquitto/data
+    ports:
+      # Host 1883 is already used by a pre-existing host mosquitto; expose ours on
+      # 1884 for local debugging. The API reaches the broker via the compose network.
+      - "127.0.0.1:1884:1883"   # local-first; remove if only in-network MQTT needed
+    networks: [nilan]
+
+  nilan-api:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    image: nilan-api:local
+    container_name: nilan-api
+    restart: unless-stopped
+    mem_limit: 256m
+    env_file: ./env/nilan.env
+    environment:
+      MQTT_HOST: mosquitto
+    devices: []
+    depends_on: [mosquitto]
+    networks: [nilan]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8642/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2
+    container_name: nilan-caddy
+    restart: unless-stopped
+    mem_limit: 96m
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "8643:8643"   # authenticated REST entrypoint (basic auth via Caddyfile)
+    depends_on: [nilan-api]
+    networks: [nilan]
+
+networks:
+  nilan:
+    driver: bridge
+
+volumes:
+  mosquitto-data:
+  caddy-data:
+  caddy-config:
