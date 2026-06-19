@@ -1,15 +1,17 @@
-# Reverse proxy + basic auth for the Nilan web UI + REST API (local-first).
+# Reverse proxy + basic auth for the Nilan web UI + REST API.
 # Exposed on :8643; proxies to the internal nilan-api:8642 which serves the
 # read-only dashboard at "/" and the API under "/api/*" (TUE-55 Phase 1).
 #
-# Credentials (CHANGE THESE — household default set by Wattson, TUE-55):
-#   user: nilan   pass: nilan-luft-2026
+# NOTE: this endpoint is also published to the public internet via Tailscale
+# Funnel (https://tj-lt.tail34a5cf.ts.net:8443/, TUE-55). The basic-auth
+# credential below is the ONLY gate, so the plaintext is deliberately NOT
+# stored in git — it is delivered to Jonas via the Paperclip issue thread.
 # Rotate with:
 #   docker run --rm caddy:2 caddy hash-password --plaintext '<new-password>'
 #   then replace the hash below and `docker compose restart caddy`.
 :8643 {
 	basic_auth {
-		nilan $2a$14$6RuKmPnVlbN/MroImshdwughy.bvB32XQB5BwhZO8rs3agqquzY3m
+		nilan $2a$14$z.skBe/p6r.pTrZh/OvG6Ougt3TAW7DWP2Zb7/3LfgBsM0SR0t36C
 	}
 	reverse_proxy nilan-api:8642
 	encode gzip

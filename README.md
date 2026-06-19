@@ -80,9 +80,10 @@ service or port).
 
 | What | Where |
 |---|---|
-| **URL (fixed local address)** | `http://tj-lt:8643/` (or `http://192.168.1.103:8643/`) |
-| **Login** | user `nilan` / pass `nilan-luft-2026` — **change this** (see below) |
-| **Auto-start** | `docker compose` `restart: unless-stopped` (survives reboot) |
+| **URL (LAN)** | `http://tj-lt:8643/` (or `http://192.168.1.103:8643/`) |
+| **URL (public, Tailscale Funnel)** | `https://tj-lt.tail34a5cf.ts.net:8443/` |
+| **Login** | user `nilan` / password delivered via the TUE-55 Paperclip thread (not stored in git, since the endpoint is public) |
+| **Auto-start** | `docker compose` `restart: unless-stopped` + `tailscale funnel --bg` (persisted) |
 | **Refresh** | auto-polls `/api/status` every `NILAN_POLL_SECONDS` (mobile-aware) |
 
 What it shows (Phase 1):
@@ -113,6 +114,26 @@ docker run --rm caddy:2 caddy hash-password --plaintext '<new-pass>'
 # paste the hash into caddy/Caddyfile (basic_auth nilan <hash>), then:
 docker compose restart caddy
 ```
+
+### Public access — Tailscale Funnel (TUE-55)
+
+The dashboard is published to the public internet on Funnel port **8443**
+(`https://tj-lt.tail34a5cf.ts.net:8443/`), proxying to the local Caddy on
+`127.0.0.1:8643`. Funnel port `443` is already used by another service, so `8443`
+is the dashboard's slot. Manage it with:
+
+```bash
+tailscale funnel status                                   # show all funnel mappings
+tailscale funnel --bg --https=8443 http://127.0.0.1:8643  # (re)enable dashboard funnel
+tailscale funnel --https=8443 off                         # take it OFF the public internet
+```
+
+**Security:** Funnel exposes the endpoint to the *whole internet*; the Caddy
+basic-auth credential is the only gate, so it must stay strong (it is NOT in git).
+Because `/api/*` is same-origin, once **Phase 2** flips `NILAN_READ_ONLY=0` the
+*write* endpoints become publicly reachable behind that one password — reconsider
+exposure then (keep control tailnet-only via `tailscale serve`, or add a second
+factor) before unlocking writes on the public Funnel.
 
 > **Phase 2 (control)** stays disabled until `TUE-54` (GND fix → live bus) is done
 > and write-tests pass; then set `NILAN_READ_ONLY=0` and the UI controls activate.
