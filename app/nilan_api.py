@@ -203,46 +203,67 @@ class NilanDevice:
                 log.warning("state callback failed: %s", e)
         return data
 
-    def _retry(self, fn, *args):
+    def _retry(self, method: str, *args):
+        """Run a device op (by method name) with resilient retries.
+
+        The method is resolved on ``self._cts`` *each attempt* so that a
+        reconnect — which replaces ``self._cts`` — is picked up on the next try.
+
+        Retries on:
+          * ``NilanCTS600Exception`` / ``TimeoutError`` — transient protocol/bus
+            timeouts (single garbled frame). Plain retry.
+          * ``OSError`` (e.g. ``[Errno 5] Input/output error``) — the socat PTY
+            blipped/was re-created, so the serial handle is stale. Reconnect
+            first, then retry. This is the write-path failure Jonas hit.
+        """
         last = None
         for attempt in range(1, RETRIES + 1):
             try:
-                return fn(*args)
+                return getattr(self._cts, method)(*args)
             except (NilanCTS600Exception, TimeoutError) as e:
                 last = e
                 log.warning("device op %s attempt %d/%d failed: %s",
-                            getattr(fn, "__name__", fn), attempt, RETRIES, e)
+                            method, attempt, RETRIES, e)
                 time.sleep(0.3)
+            except OSError as e:
+                last = e
+                log.warning("device op %s attempt %d/%d I/O error (%s) -> reconnecting",
+                            method, attempt, RETRIES, e)
+                try:
+                    self.connect()
+                except Exception as ce:  # noqa: BLE001
+                    log.warning("reconnect after I/O error failed: %s", ce)
+                time.sleep(0.6)
         raise last if last else RuntimeError("device op failed")
 
     def set_fan(self, level: int) -> None:
         with self._lock:
             if level == 0:
-                self._retry(self._cts.key_off)
+                self._retry("key_off")
             else:
                 # ensure unit is on, then set flow 1-4
                 try:
-                    self._retry(self._cts.key_on)
+                    self._retry("key_on")
                 except Exception:  # noqa: BLE001
                     pass
-                self._retry(self._cts.setFlow, level)
+                self._retry("setFlow", level)
         self.refresh()
 
     def set_mode(self, mode: str) -> None:
         with self._lock:
             if mode == "off":
-                self._retry(self._cts.key_off)
+                self._retry("key_off")
             else:
                 try:
-                    self._retry(self._cts.key_on)
+                    self._retry("key_on")
                 except Exception:  # noqa: BLE001
                     pass
-                self._retry(self._cts.setMode, MODE_TO_FRODEF[mode])
+                self._retry("setMode", MODE_TO_FRODEF[mode])
         self.refresh()
 
     def set_temp(self, setpoint: int) -> None:
         with self._lock:
-            self._retry(self._cts.setThermostat, setpoint)
+            self._retry("setThermostat", setpoint)
         self.refresh()
 
     # -- contract projection (plan section 8) --
