@@ -31,8 +31,8 @@ the socat/broker/proxy layers here are reused as-is.
 |---|---|
 | `vendor/nilan_cts600.py` | Pinned frodef CTS600 protocol lib (incl. mockup) |
 | `app/nilan_api.py` | FastAPI REST + MQTT wrapper (implements plan §8) |
-| `app/Dockerfile`, `app/entrypoint.sh` | API image; entrypoint runs socat sidecar in real mode |
-| `docker-compose.yml` | `mosquitto` + `nilan-api` + `caddy` (auth proxy) |
+| `app/Dockerfile`, `app/entrypoint.sh` | API image; entrypoint supervises socat + uvicorn (self-healing, TUE-100) |
+| `docker-compose.yml` | `mosquitto` + `nilan-api` + `caddy` (auth proxy) + `autoheal` (restarts unhealthy api) |
 | `mosquitto/` | broker config + `passwd` (gitignored) |
 | `caddy/Caddyfile` | reverse proxy + basic auth on `:8643` |
 | `env/nilan.env(.example)` | config + secrets (`.env` gitignored) |
@@ -117,6 +117,35 @@ docker run --rm caddy:2 caddy hash-password --plaintext '<new-pass>'
 # paste the hash into caddy/Caddyfile (basic_auth nilan <hash>), then:
 docker compose restart caddy
 ```
+
+### Reliability & self-healing (TUE-100)
+
+The bus self-heals from a lost connection within ~1–2 min with **no manual
+`docker restart`**, via three independent layers:
+
+1. **socat inner loop** (`app/entrypoint.sh`) relaunches socat whenever socat
+   exits (ESP reboot / dropped TCP). In-place, no container restart. The loop
+   runs with `set +e` so a transient failure can't break it.
+2. **`wait -n` supervisor** — if the socat loop *or* uvicorn ever exits entirely
+   (the old bug: a backgrounded `set -e` subshell could silently die), the
+   entrypoint exits non-zero, so Docker `restart: unless-stopped` recreates the
+   container. Runs under tini (`init: true`) for signal forwarding + zombie reap.
+3. **Bus-aware `/healthz` + autoheal** — `/healthz` returns **503** once the bus
+   has been disconnected for `> NILAN_HEALTH_STALE_SECONDS` (default 90s). The
+   compose healthcheck then marks the container `unhealthy`, and the
+   **`nilan-autoheal`** sidecar (watches `autoheal=true` containers via the
+   Docker socket) restarts it. This covers the case the inner loop can't see —
+   socat alive but the ESP TCP half-open / silently dead.
+
+```bash
+# verify healthcheck reflects the bus:
+docker exec nilan-api python -c "import urllib.request,json;print(urllib.request.urlopen('http://127.0.0.1:8642/healthz').read().decode())"
+#   {"ok":true,"connected":true,"stale_for_s":4.2,"stale_threshold_s":90.0,...}
+docker logs nilan-autoheal | grep -i restarting   # autoheal restart events
+```
+
+Tunables (`env/nilan.env`): `NILAN_HEALTH_STALE_SECONDS` (grace before 503).
+Healthcheck cadence lives in `docker-compose.yml` (`interval`/`retries`/`start_period`).
 
 ### Public access — Tailscale Funnel (TUE-55)
 

@@ -28,19 +28,29 @@ services:
     image: nilan-api:local
     container_name: nilan-api
     restart: unless-stopped
+    # tini as PID 1: forwards signals and reaps socat zombies so the entrypoint
+    # supervisor can never be orphaned/un-reaped (TUE-100).
+    init: true
     mem_limit: 256m
     env_file: ./env/nilan.env
     environment:
       MQTT_HOST: mosquitto
+    # Watched by the autoheal sidecar: when /healthz is 503 (bus down >N s) the
+    # container is marked unhealthy and autoheal restarts it (TUE-100).
+    labels:
+      autoheal: "true"
     devices: []
     depends_on: [mosquitto]
     networks: [nilan]
     healthcheck:
+      # /healthz returns 503 on a sustained bus disconnect; urlopen raises on
+      # 503 -> non-zero exit -> unhealthy. retries*interval keeps a brief blip
+      # from flapping while still tripping within the ~1-2 min recovery window.
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8642/healthz').status==200 else 1)"]
-      interval: 30s
+      interval: 20s
       timeout: 5s
-      retries: 3
-      start_period: 20s
+      retries: 2
+      start_period: 60s
 
   caddy:
     image: caddy:2
@@ -55,6 +65,23 @@ services:
       - "8643:8643"   # authenticated REST entrypoint (basic auth via Caddyfile)
     depends_on: [nilan-api]
     networks: [nilan]
+
+  # TUE-100: watches containers labeled `autoheal=true` and restarts any that
+  # Docker reports `unhealthy`. Plain docker-compose does NOT restart on health
+  # status by itself; this sidecar is what turns the bus-aware healthcheck into
+  # an actual auto-restart. Local-first: only needs the Docker socket (read).
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: nilan-autoheal
+    restart: unless-stopped
+    mem_limit: 32m
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "15"        # poll health every 15s
+      AUTOHEAL_START_PERIOD: "60"    # ignore health for 60s after a container starts
+      DOCKER_SOCK: /var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
   nilan:
