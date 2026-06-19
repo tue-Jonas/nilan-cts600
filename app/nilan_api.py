@@ -464,6 +464,30 @@ def get_meta(_: None = Depends(auth)):
             "T15": "°C", "T1": "°C", "T2": "°C", "T5": "°C", "T6": "°C", "T7": "°C",
             "humidity": "%", "RH": "%",
         },
+        # Plain-language meaning of each parameter, from the Nilan CTS600 manual +
+        # frodef's reverse-engineering (TUE-55). Lets the UI explain values inline.
+        "descriptions": {
+            "T1": "Frischluft/Außentemperatur — angesaugte Außenluft (Fühler an der Nordseite).",
+            "T2": "Zulufttemperatur am Ventilator, vor einem evtl. Nachheizregister (heißt T7 mit Heizregister).",
+            "T3": "Frischluftfühler (an diesem Gerät nicht belegt).",
+            "T4": "Gegenstrom-Wärmetauscher (an diesem Gerät nicht belegt).",
+            "T5": "Kondensatortemperatur der Wärmepumpe.",
+            "T6": "Verdampfertemperatur der Wärmepumpe.",
+            "T15": "Fühler im CTS600-Bedienpanel. Das Panel ist durch den ESP ersetzt, "
+                   "daher wird dieser Raumwert vom Daemon injiziert (Fallback) — KEIN echter "
+                   "Live-Raumfühler. Für echte Raumtemperatur einen externen Fühler einspeisen.",
+            "t_room": "Raumtemperatur, die das Gerät zur Regelung nutzt (= T15, aktuell injizierter Fallback).",
+            "t_supply": "Zulufttemperatur (T2) — Luft, die in die Wohnung geblasen wird.",
+            "t_exhaust": "Frischluft/Außen (T1) — angesaugte Außenluft.",
+            "setpoint": "Solltemperatur (Thermostat), 5–30 °C — gewünschte Raumtemperatur.",
+            "fan_level": "Lüfterstufe 0–4 (0 = aus, 4 = höchste).",
+            "mode": "Betriebsmodus: auto (automatisch heizen/kühlen), heat, cool, off.",
+            "status": "Aktueller Betriebszustand laut Gerät (z. B. KÜHLEN, HEIZEN).",
+            "ZULUFT_STUFE": "Aktuelle Zuluft-Ventilatorstufe.",
+            "ABLUFT_STUFE": "Aktuelle Abluft-Ventilatorstufe.",
+            "program": "Aktives Zeitprogramm (Wochenprogramm), sofern gesetzt.",
+            "led": "Betriebs-LED des Panels (an = Gerät läuft).",
+        },
     }
 
 

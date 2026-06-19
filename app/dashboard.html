@@ -49,7 +49,9 @@
   td{padding:.5rem .8rem;border-top:1px solid var(--line);font-size:.88rem;vertical-align:top}
   tr:first-child td{border-top:none}
   td.k{color:var(--muted);width:55%}
-  td.v{text-align:right;font-variant-numeric:tabular-nums}
+  td.k .sub{color:#64748b;font-size:.72rem;margin-top:.15rem;line-height:1.3}
+  td.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tile .note{font-size:.66rem;color:#64748b;margin-top:.35rem;line-height:1.25}
   details summary{cursor:pointer;color:var(--accent);font-size:.85rem;padding:.3rem 0}
   .controls.locked{opacity:.55;pointer-events:none}
   .btnrow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0;align-items:center}
@@ -129,6 +131,7 @@ let META = null, pollMs = POLL_FALLBACK, timer = null, LAST_STATUS = null;
 
 const lbl = (k) => (META && META.labels && META.labels[k]) || k;
 const unit = (k) => (META && META.units && META.units[k]) || "";
+const desc = (k) => (META && META.descriptions && META.descriptions[k]) || "";
 const esc = (s) => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 function fmt(v, u){
@@ -137,18 +140,23 @@ function fmt(v, u){
   if (typeof v === "boolean") return v ? "ja" : "nein";
   return String(v) + (u ? " " + u : "");
 }
-function tile(key, val, u){
+function tile(key, val, u, note){
   const f = fmt(val, u);
   const body = f === null ? `<div class="v na">–</div>`
     : `<div class="v">${esc(f)}</div>`;
-  return `<div class="tile"><div class="k">${esc(lbl(key))}</div>${body}</div>`;
+  const d = desc(key);
+  const noteHtml = note ? `<div class="note">${esc(note)}</div>` : "";
+  return `<div class="tile"${d ? ` title="${esc(d)}"` : ""}>`
+    + `<div class="k">${esc(lbl(key))}</div>${body}${noteHtml}</div>`;
 }
 function rows(obj, mapKey){
   const keys = Object.keys(obj).sort();
   if (!keys.length) return `<tr><td class="k">keine Daten</td><td class="v"></td></tr>`;
   return keys.map(k => {
     const f = fmt(obj[k], unit(k));
-    return `<tr><td class="k">${esc(mapKey ? lbl(k) : k)}</td>
+    const d = mapKey ? desc(k) : "";
+    const sub = d ? `<div class="sub">${esc(d)}</div>` : "";
+    return `<tr><td class="k">${esc(mapKey ? lbl(k) : k)}${sub}</td>
       <td class="v">${f === null ? '–' : esc(f)}</td></tr>`;
   }).join("");
 }
@@ -270,7 +278,7 @@ function render(st){
     : "Bridge offline – keine Verbindung zur Lüftung.");
 
   const prim = [
-    tile("t_room", st.t_room, "°C"),
+    tile("t_room", st.t_room, "°C", "Panel-Fühler ersetzt → injizierter Wert, kein Live-Raumfühler"),
     tile("t_supply", st.t_supply, "°C"),
     tile("t_exhaust", st.t_exhaust, "°C"),
     tile("mode", st.mode),
