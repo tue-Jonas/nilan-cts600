@@ -166,9 +166,9 @@ function renderControlGate(){
   const ro = !META || META.read_only;
   if (ro){
     banner.className = "banner warn";
-    banner.innerHTML = "🔒 <div><b>Steuerung gesperrt (Phase 1: read-only).</b> "
-      + "Schreibzugriff wird in Phase 2 freigeschaltet, sobald der Live-Bus steht "
-      + "(GND-Fix, TUE-54) und Write-Tests verifiziert sind.</div>";
+    banner.innerHTML = "🔒 <div><b>Steuerung gesperrt (read-only).</b> "
+      + "Der Live-Bus läuft und liefert echte Daten — Schreibzugriff (Lüfter/Modus/Soll) "
+      + "wird nach kontrollierten Write-Tests freigeschaltet (Phase 2).</div>";
     hint.textContent = "deaktiviert";
   } else {
     banner.className = "banner info";

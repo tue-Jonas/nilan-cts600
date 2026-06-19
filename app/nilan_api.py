@@ -62,6 +62,9 @@ HTTP_HOST = os.environ.get("NILAN_HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.environ.get("NILAN_HTTP_PORT", "8642"))
 ESP_IP = os.environ.get("ESP_IP", "").strip()       # live ESP bridge IP (real mode)
 ESP_PORT = os.environ.get("ESP_PORT", "6638").strip()
+# Panel language to set at connect so frodef's English SHOW-DATA menu regexes
+# match (temperatures). Empty string disables. Default ENGLISH.
+SET_LANGUAGE = os.environ.get("NILAN_SET_LANGUAGE", "ENGLISH").strip()
 
 APP_VERSION = "1.1"  # 1.1 adds read-only web dashboard (TUE-55 Phase 1)
 DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html")
@@ -111,6 +114,17 @@ class NilanDevice:
             self._cts = cls(port=None if MOCKUP else PORT_DEV)
             self._cts.connect()
             self._cts.initialize()
+            # Force the panel language to English: frodef's SHOW-DATA menu scan
+            # matches English labels (STATUS, Tnn …°C). On a German unit those
+            # regexes never match, so temperatures come back null. The physical
+            # CTS600 panel is removed (ESP is the only master), so the display
+            # language only affects what our scraper reads — safe to set.
+            if not MOCKUP and SET_LANGUAGE:
+                try:
+                    ok = self._cts.setLanguage(SET_LANGUAGE)
+                    log.info("setLanguage(%s) -> %s", SET_LANGUAGE, ok)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("setLanguage(%s) failed (non-fatal): %s", SET_LANGUAGE, e)
             try:
                 self._cts.setT15(T15_FALLBACK)
             except Exception as e:  # noqa: BLE001
@@ -410,15 +424,19 @@ def get_meta(_: None = Depends(auth)):
         "labels": {
             "t_room": "Raumtemperatur",
             "t_supply": "Zulufttemperatur",
-            "t_exhaust": "Ablufttemperatur",
+            "t_exhaust": "Außen/Frischluft",
             "fan_level": "Lüfterstufe",
             "mode": "Betriebsmodus",
             "setpoint": "Solltemperatur",
             "status": "Status",
             "display": "Display-Text",
-            "T15": "Raum (T15)", "T1": "Zuluft (T1)", "T2": "T2",
-            "T5": "Abluft (T5)", "T6": "Außen (T6)", "T7": "T7",
+            # Sensor labels confirmed live from the unit's "ANZEIGE DATEN" menu
+            # (TUE-55): RAUM=T15, ZULUFT=T2, FRISCHL.=T1, KONDENS.=T5, VERDAMP.=T6.
+            "T15": "Raum (T15)", "T2": "Zuluft (T2)", "T1": "Frischluft/Außen (T1)",
+            "T5": "Kondensator (T5)", "T6": "Verdampfer (T6)",
+            "ZULUFT_STUFE": "Zuluft-Stufe", "ABLUFT_STUFE": "Abluft-Stufe",
             "flow": "Lüfterstufe", "thermostat": "Solltemperatur",
+            "program": "Programm",
             "humidity": "Luftfeuchte", "RH": "Luftfeuchte",
             "filter": "Filter", "led": "LED",
         },

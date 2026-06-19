@@ -513,13 +513,15 @@ class CTS600:
         scan_menu = [ _scanner_reset_menu() ] + _scanner_top_display ()
         if updateShowData:
             show_data = [
-                f (display=Key.UP, regexp="SHOW/DATA", gonext=self.key_enter),
+                # Menu label is language-dependent: EN "SHOW DATA", DE "ANZEIGE DATEN".
+                # (TWB/TUE-55: this unit's panel is German.)
+                f (display=Key.UP, regexp="(SHOW/DATA|ANZEIGE/DATEN)", gonext=self.key_enter),
                 [ (Key.DOWN, ""),
                   f (regexp=r"STATUS/(?P<value>.*)", var='status'),
-                  # Match any temperature sensor like T5:
+                  # Match any temperature sensor like T5 (label part is language-agnostic):
                   f (regexp=r"(?P<description>.*)/(?P<var>T\d+)\s+(?P<value>\d+)°C$", parse=int, kind='temperature'),
-                  # Match any flow value:
-                  f (regexp=r"(?P<var>.*/FLOW)\s+(?P<value>\d+)", parse=int, kind='flow'),
+                  # Match any flow value (EN "…/FLOW n", DE "…/STUFE n"):
+                  f (regexp=r"(?P<var>.*/(?:FLOW|STUFE))\s+(?P<value>\d+)", parse=int, kind='flow'),
                  ],
             ]
             if updateAllData:
