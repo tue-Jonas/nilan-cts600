@@ -39,7 +39,7 @@ from typing import Any, Optional
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Header, Depends
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -55,6 +55,12 @@ MOCKUP = os.environ.get("NILAN_MOCKUP", "0").strip() not in ("0", "", "false", "
 PORT_DEV = os.environ.get("NILAN_PORT", "/dev/ttyNILAN")
 RETRIES = int(os.environ.get("NILAN_RETRIES", "3"))
 POLL_SECONDS = float(os.environ.get("NILAN_POLL_SECONDS", "30"))
+# TUE-100: how long the bus may be disconnected before /healthz reports 503.
+# Must exceed a couple of poll cycles so a single missed read / brief reconnect
+# blip does NOT flap the healthcheck, but be short enough that a real outage
+# trips the autoheal restart inside the ~1-2 min acceptance window.
+HEALTH_STALE_SECONDS = float(os.environ.get("NILAN_HEALTH_STALE_SECONDS", "90"))
+START_TS = time.time()  # process boot reference for the "never connected" case
 T15_FALLBACK = float(os.environ.get("NILAN_T15_FALLBACK", "21"))
 API_TOKEN = os.environ.get("NILAN_API_TOKEN", "").strip()  # optional bearer for direct access
 READ_ONLY = os.environ.get("NILAN_READ_ONLY", "0").strip().lower() in ("1", "true", "yes", "on")
@@ -144,10 +150,13 @@ class NilanDevice:
                     log.info("setLanguage(%s) -> %s", SET_LANGUAGE, ok)
                 except Exception as e:  # noqa: BLE001
                     log.warning("setLanguage(%s) failed (non-fatal): %s", SET_LANGUAGE, e)
-            try:
-                self._cts.setT15(T15_FALLBACK)
-            except Exception as e:  # noqa: BLE001
-                log.warning("setT15 fallback failed (non-fatal): %s", e)
+            if READ_ONLY:
+                log.info("Skipping setT15 fallback because NILAN_READ_ONLY is enabled")
+            else:
+                try:
+                    self._cts.setT15(T15_FALLBACK)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("setT15 fallback failed (non-fatal): %s", e)
             self._connected = True
             self._last_error = None
 
@@ -173,7 +182,17 @@ class NilanDevice:
         while not self._stop.is_set():
             try:
                 self.refresh()
+            except OSError as e:
+                self._connected = False
+                self._last_error = str(e)
+                log.warning("Poll I/O error (%s) -> reconnecting before next poll", e)
+                try:
+                    self.connect()
+                except Exception as ce:  # noqa: BLE001
+                    self._last_error = str(ce)
+                    log.warning("Reconnect after poll I/O error failed: %s", ce)
             except Exception as e:  # noqa: BLE001
+                self._connected = False
                 self._last_error = str(e)
                 log.warning("Poll failed: %s", e)
             self._stop.wait(POLL_SECONDS)
@@ -196,6 +215,7 @@ class NilanDevice:
             self._snapshot = data
             self._last_update_ts = time.time()
             self._connected = True
+            self._last_error = None
         if self._on_state_change:
             try:
                 self._on_state_change(self.status())
@@ -431,7 +451,27 @@ class TempBody(BaseModel):
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "connected": device._connected, "mockup": MOCKUP, "read_only": READ_ONLY}
+    """Bus-aware liveness (TUE-100). Returns 503 once the bus has been
+    disconnected for longer than HEALTH_STALE_SECONDS so the Docker healthcheck
+    goes `unhealthy` and the autoheal sidecar restarts the container. Tolerates
+    a single missed poll / brief reconnect blip (stays 200 while last good read
+    is recent). Mockup mode has no real bus, so it is always healthy."""
+    now = time.time()
+    # Time since the last successful bus read; if we have never read, measure
+    # from process start so a container that never connects also goes unhealthy.
+    last_good = device._last_update_ts or START_TS
+    stale_for = now - last_good
+    bus_ok = MOCKUP or device._connected or (stale_for <= HEALTH_STALE_SECONDS)
+    body = {
+        "ok": bus_ok,
+        "connected": device._connected,
+        "mockup": MOCKUP,
+        "read_only": READ_ONLY,
+        "stale_for_s": round(stale_for, 1),
+        "stale_threshold_s": HEALTH_STALE_SECONDS,
+        "last_error": device._last_error,
+    }
+    return JSONResponse(status_code=200 if bus_ok else 503, content=body)
 
 
 @app.get("/api/meta")
@@ -472,7 +512,7 @@ def get_meta(_: None = Depends(auth)):
             # Sensor labels confirmed live from the unit's "ANZEIGE DATEN" menu
             # (TUE-55): RAUM=T15, ZULUFT=T2, FRISCHL.=T1, KONDENS.=T5, VERDAMP.=T6.
             "T15": "Raum (T15)", "T2": "Zuluft (T2)", "T1": "Frischluft/Außen (T1)",
-            "T5": "Kondensator (T5)", "T6": "Verdampfer (T6)",
+            "T5": "Kondensator (T5)", "T6": "Verdampfer (T6)", "T7": "Nachheizregister (T7)",
             "ZULUFT_STUFE": "Zuluft-Stufe", "ABLUFT_STUFE": "Abluft-Stufe",
             "flow": "Lüfterstufe", "thermostat": "Solltemperatur",
             "program": "Programm",
@@ -494,6 +534,7 @@ def get_meta(_: None = Depends(auth)):
             "T4": "Gegenstrom-Wärmetauscher (an diesem Gerät nicht belegt).",
             "T5": "Kondensatortemperatur der Wärmepumpe.",
             "T6": "Verdampfertemperatur der Wärmepumpe.",
+            "T7": "Zulufttemperatur nach einem Nachheizregister, falls am Gerät vorhanden.",
             "T15": "Fühler im CTS600-Bedienpanel. Das Panel ist durch den ESP ersetzt, "
                    "daher wird dieser Raumwert vom Daemon injiziert (Fallback) — KEIN echter "
                    "Live-Raumfühler. Für echte Raumtemperatur einen externen Fühler einspeisen.",

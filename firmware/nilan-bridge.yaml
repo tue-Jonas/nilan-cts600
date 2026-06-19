@@ -42,13 +42,20 @@ uart:
   flow_control_pin: GPIO21
   baud_rate: 19200
   data_bits: 8
-  # CTS600 framing is 8N2 (NO parity, 2 stop bits) — matches the proven frodef
-  # reference driver (ModbusSerialClient parity='N', stopbits=2). The earlier
-  # 8E1 guess from the research note was WRONG: with parity:EVEN the ESP-IDF/
-  # Arduino UART mangles the slave's reply (verified on-site 2026-06-19: the bus
-  # answers with a 31-byte frame but every Modbus CRC fails). 8N2 = correct.
+  # Framing diagnosis (TUE-57, 2026-06-19):
+  #   The slave DOES understand our request — it replies with a stable, byte-for-
+  #   byte identical 31-byte frame on every read (NOT random => bus/GND is clean).
+  #   But the reply fails CRC and the function code reads 0x44 instead of 0x11.
+  #   Signature: byte0 (slave addr 0x03) is CORRECT, every byte after it is
+  #   corrupted, identically each time. That is the textbook fingerprint of an
+  #   RX stop-bit mismatch: the slave replies with 1 stop bit while the strict
+  #   ESP-IDF/Arduino UART was set to expect 2 -> it loses byte-sync after byte0.
+  #   (A USB-RS485 dongle, as used by upstream frodef users, tolerates this on RX,
+  #   which is why their stopbits=2 "works" there but not on the ESP.)
+  #   => receive at 8N1. TX stays compatible (the slave already accepted 8N2 TX,
+  #   and 8N1 provides the stop bit it needs). Revert to stop_bits: 2 if disproven.
   parity: NONE
-  stop_bits: 2
+  stop_bits: 1
   rx_buffer_size: 512
 stream_server:
   uart_id: nilan_uart
