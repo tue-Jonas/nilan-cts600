@@ -3,351 +3,749 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0f172a">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f7f8fb">
+<link rel="icon" href="data:,">
 <title>Nilan Wohnraumlüftung</title>
 <style>
   :root{
-    --bg:#0f172a; --card:#1e293b; --card2:#172033; --line:#334155;
-    --fg:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --ok:#22c55e;
-    --warn:#f59e0b; --bad:#ef4444; --chip:#0b1220;
+    --page:#f7f8fb;
+    --page-2:#ffffff;
+    --panel:#ffffff;
+    --panel-soft:#f2f5f8;
+    --ink:#172026;
+    --muted:#60707b;
+    --faint:#7f8e99;
+    --line:#dce3ea;
+    --line-strong:#b8c4cf;
+    --green:#0f7b55;
+    --green-soft:#dff3e9;
+    --blue:#156a9f;
+    --blue-soft:#e0f1fb;
+    --amber:#9b640f;
+    --amber-soft:#fff3d8;
+    --red:#b3261e;
+    --red-soft:#fee7e3;
+    --shadow:0 12px 38px rgba(23,32,38,.10);
+    --radius:8px;
+    --tap:44px;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;
-    padding:env(safe-area-inset-top) env(safe-area-inset-right) 2rem env(safe-area-inset-left);}
-  header{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#0f172a 70%,rgba(15,23,42,0));
-    padding:.9rem 1rem .6rem;}
-  h1{font-size:1.15rem;margin:0 0 .45rem;display:flex;align-items:center;gap:.5rem}
-  h1 .dot{width:.7rem;height:.7rem;border-radius:50%;background:var(--muted);flex:none}
-  h1 .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
-  h1 .dot.off{background:var(--bad);box-shadow:0 0 8px var(--bad)}
-  .badges{display:flex;flex-wrap:wrap;gap:.35rem;font-size:.72rem}
-  .badge{background:var(--chip);border:1px solid var(--line);color:var(--muted);
-    padding:.15rem .5rem;border-radius:999px;white-space:nowrap}
-  .badge.live{color:var(--ok);border-color:#14532d}
-  .badge.mock{color:var(--warn);border-color:#78350f}
-  .badge.ro{color:var(--accent);border-color:#0c4a6e}
-  main{padding:0 1rem;max-width:760px;margin:0 auto}
-  .banner{border-radius:12px;padding:.8rem 1rem;margin:.6rem 0;font-size:.9rem;
-    display:flex;gap:.6rem;align-items:flex-start;line-height:1.35}
-  .banner.bad{background:#3f1d1d;border:1px solid #7f1d1d;color:#fecaca}
-  .banner.warn{background:#3a2c10;border:1px solid #78350f;color:#fde68a}
-  .banner.info{background:#0b2a3a;border:1px solid #0c4a6e;color:#bae6fd}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin:.6rem 0}
-  .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:.85rem .9rem}
-  .tile .k{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-  .tile .v{font-size:1.7rem;font-weight:650;margin-top:.2rem;line-height:1.1}
-  .tile .v small{font-size:.95rem;color:var(--muted);font-weight:500}
-  .tile .v.na{color:var(--muted);font-size:1.1rem;font-weight:500}
-  section{margin:1.3rem 0}
-  section h2{font-size:.95rem;color:var(--fg);margin:0 0 .55rem;display:flex;
-    justify-content:space-between;align-items:baseline}
-  section h2 .hint{font-size:.72rem;color:var(--muted);font-weight:400}
-  table{width:100%;border-collapse:collapse;background:var(--card);
-    border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  td{padding:.5rem .8rem;border-top:1px solid var(--line);font-size:.88rem;vertical-align:top}
-  tr:first-child td{border-top:none}
-  td.k{color:var(--muted);width:55%}
-  td.k .sub{color:#64748b;font-size:.72rem;margin-top:.15rem;line-height:1.3}
-  td.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .tile .note{font-size:.66rem;color:#64748b;margin-top:.35rem;line-height:1.25}
-  details summary{cursor:pointer;color:var(--accent);font-size:.85rem;padding:.3rem 0}
-  .controls.locked{opacity:.55;pointer-events:none}
-  .btnrow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0;align-items:center}
-  .ctl-lbl{align-self:center;color:var(--muted);font-size:.8rem;min-width:5.5rem}
-  .btn{background:var(--card2);border:1px solid var(--line);color:var(--fg);
-    padding:.6rem 1rem;border-radius:10px;font-size:.95rem;cursor:pointer;
-    -webkit-tap-highlight-color:transparent;touch-action:manipulation}
-  .btn:active{transform:scale(.95)}
-  .btn:disabled{cursor:default;opacity:.8}
-  .btn.active{background:var(--accent);border-color:var(--accent);color:#08151f;font-weight:650}
-  .btn.busy{opacity:.5;pointer-events:none}
-  .ctl-toast{font-size:.82rem;color:var(--muted);min-height:1.1rem;margin-top:.3rem}
-  .ctl-toast.ok{color:var(--ok)} .ctl-toast.err{color:var(--bad)}
-  footer{color:var(--muted);font-size:.72rem;text-align:center;margin:1.6rem 1rem 0;line-height:1.5}
-  .pulse{animation:pulse 1.2s ease-in-out infinite}
-  @keyframes pulse{50%{opacity:.45}}
+  html{background:var(--page)}
+  body{
+    margin:0;
+    min-width:320px;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,var(--page),var(--page-2) 34rem);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(1.5rem + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+  }
+  button,input{font:inherit}
+  button{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .app{width:min(100%,1180px);margin:0 auto;padding:.75rem}
+  .topbar{
+    position:sticky;
+    top:0;
+    z-index:20;
+    margin:-.75rem -.75rem 0;
+    padding:.75rem .75rem .65rem;
+    background:rgba(247,248,251,.92);
+    backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(214,225,220,.72);
+  }
+  .topbar-inner{width:min(100%,1180px);margin:0 auto;display:flex;align-items:center;gap:.7rem}
+  .brand{min-width:0;flex:1}
+  .eyebrow{margin:0 0 .12rem;color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:0}
+  h1{font-size:1.12rem;line-height:1.12;margin:0;letter-spacing:0}
+  .connection{
+    min-width:var(--tap);
+    height:var(--tap);
+    border-radius:999px;
+    display:grid;
+    place-items:center;
+    color:var(--faint);
+    background:var(--panel);
+    border:1px solid var(--line);
+    box-shadow:0 8px 24px rgba(16,32,29,.08);
+  }
+  .connection.is-live{color:var(--green);border-color:#9ed6bd;background:var(--green-soft)}
+  .connection.is-offline{color:var(--red);border-color:#f2aaa3;background:var(--red-soft)}
+  .icon{width:1.1rem;height:1.1rem;display:inline-block;vertical-align:-.18em}
+  .icon-lg{width:1.4rem;height:1.4rem}
+  .status-strip{display:flex;gap:.45rem;overflow-x:auto;padding:.7rem .05rem .1rem;scrollbar-width:none}
+  .status-strip::-webkit-scrollbar{display:none}
+  .chip{
+    min-height:2rem;
+    display:inline-flex;
+    align-items:center;
+    gap:.35rem;
+    padding:.32rem .65rem;
+    border:1px solid var(--line);
+    border-radius:999px;
+    background:rgba(255,255,255,.72);
+    color:var(--muted);
+    font-size:.78rem;
+    font-weight:700;
+    white-space:nowrap;
+  }
+  .chip.live{color:var(--green);border-color:#a6d8c1;background:var(--green-soft)}
+  .chip.warn{color:var(--amber);border-color:#e8c27b;background:var(--amber-soft)}
+  .chip.bad{color:var(--red);border-color:#efaaa4;background:var(--red-soft)}
+  .content{display:grid;gap:.8rem;margin-top:.7rem}
+  .notice{
+    display:none;
+    align-items:flex-start;
+    gap:.65rem;
+    padding:.78rem .82rem;
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    background:var(--panel);
+    box-shadow:0 6px 24px rgba(16,32,29,.06);
+    color:var(--muted);
+    line-height:1.35;
+  }
+  .notice strong{display:block;color:var(--ink);margin-bottom:.12rem}
+  .notice.is-visible{display:flex}
+  .notice.bad{border-color:#efaaa4;background:var(--red-soft);color:#6f211c}
+  .notice.warn{border-color:#e8c27b;background:var(--amber-soft);color:#68440f}
+  .notice.info{border-color:#acd5ea;background:var(--blue-soft);color:#174e70}
+  .hero{
+    display:grid;
+    gap:.75rem;
+    grid-template-columns:1fr;
+  }
+  .hero-main,.card{
+    background:rgba(255,255,255,.88);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  .hero-main{
+    padding:1rem;
+    display:grid;
+    gap:.9rem;
+  }
+  .metric-title{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:.75rem;
+    color:var(--muted);
+    font-size:.8rem;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:0;
+  }
+  .metric-title span:first-child{display:inline-flex;align-items:center;gap:.42rem}
+  .metric-value{
+    margin:.15rem 0 0;
+    font-size:3.15rem;
+    line-height:.95;
+    font-weight:850;
+    letter-spacing:0;
+    font-variant-numeric:tabular-nums;
+  }
+  .metric-unit{font-size:.42em;color:var(--muted);font-weight:750}
+  .metric-desc{margin:0;color:var(--muted);font-size:.88rem;line-height:1.42;max-width:58ch}
+  .inline-tag{
+    display:inline-flex;
+    align-items:center;
+    min-height:1.55rem;
+    padding:.12rem .5rem;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--panel-soft);
+    color:var(--muted);
+    font-size:.72rem;
+    font-weight:800;
+    white-space:normal;
+  }
+  .inline-tag.warn{background:var(--amber-soft);border-color:#e8c27b;color:var(--amber)}
+  .tile-grid{display:grid;grid-template-columns:1fr;gap:.55rem}
+  .tile{
+    min-width:0;
+    min-height:8.2rem;
+    display:flex;
+    flex-direction:column;
+    gap:.45rem;
+    padding:.78rem;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--panel);
+  }
+  .tile .metric-title{font-size:.72rem;letter-spacing:0}
+  .tile-value{
+    min-height:2.2rem;
+    display:flex;
+    align-items:flex-end;
+    color:var(--ink);
+    font-size:1.62rem;
+    line-height:1;
+    font-weight:830;
+    overflow-wrap:anywhere;
+    font-variant-numeric:tabular-nums;
+  }
+  .tile-value.text{font-size:1.05rem;line-height:1.16;align-items:center}
+  .tile-value.na{color:var(--faint);font-size:1.18rem;font-weight:700}
+  .tile small{font-size:.72rem;line-height:1.3;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .section{display:grid;gap:.55rem}
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem}
+  h2{margin:0;font-size:1rem;line-height:1.2;letter-spacing:0}
+  .section-note{margin:0;color:var(--muted);font-size:.78rem;text-align:right}
+  .controls-card{padding:.85rem;display:grid;gap:.85rem}
+  .control-state{display:flex;gap:.55rem;align-items:flex-start;padding:.68rem;border-radius:var(--radius);background:var(--panel-soft);border:1px solid var(--line);color:var(--muted);font-size:.86rem;line-height:1.36}
+  .control-state strong{color:var(--ink)}
+  .control-grid{display:grid;gap:.8rem}
+  .control-group{display:grid;gap:.42rem}
+  .control-label{display:flex;align-items:center;justify-content:space-between;gap:.6rem;color:var(--ink);font-size:.86rem;font-weight:800}
+  .segmented{display:grid;grid-template-columns:repeat(auto-fit,minmax(3.1rem,1fr));gap:.42rem}
+  .btn{
+    min-height:var(--tap);
+    border:1px solid var(--line-strong);
+    border-radius:var(--radius);
+    background:var(--panel);
+    color:var(--ink);
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.38rem;
+    padding:.55rem .72rem;
+    font-size:.93rem;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .btn:focus-visible{outline:3px solid rgba(21,106,159,.28);outline-offset:2px}
+  .btn:active{transform:translateY(1px)}
+  .btn.is-active{border-color:#74bd9c;background:var(--green-soft);color:#07452e}
+  .btn.is-danger{border-color:#efaaa4;color:var(--red);background:#fffafa}
+  .btn[disabled]{cursor:not-allowed;color:var(--faint);border-color:var(--line);background:#f5f8f6;opacity:.78;transform:none}
+  .stepper{
+    display:grid;
+    grid-template-columns:var(--tap) minmax(0,1fr) var(--tap);
+    gap:.42rem;
+    align-items:stretch;
+  }
+  .stepper-value{
+    min-height:var(--tap);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--panel-soft);
+    font-weight:850;
+    font-size:1.06rem;
+    font-variant-numeric:tabular-nums;
+  }
+  .toast{min-height:1.35rem;color:var(--muted);font-size:.84rem;line-height:1.35}
+  .toast.ok{color:var(--green)}
+  .toast.err{color:var(--red)}
+  .data-card{overflow:hidden}
+  .list{display:grid}
+  .row{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:.75rem;
+    padding:.72rem .82rem;
+    border-top:1px solid var(--line);
+    align-items:start;
+  }
+  .row:first-child{border-top:0}
+  .row-key{min-width:0;color:var(--ink);font-size:.88rem;font-weight:750}
+  .row-desc{margin:.2rem 0 0;color:var(--muted);font-size:.76rem;line-height:1.34;font-weight:500}
+  .row-value{
+    min-width:0;
+    max-width:48vw;
+    text-align:right;
+    color:var(--ink);
+    font-weight:800;
+    font-variant-numeric:tabular-nums;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  details.card{padding:0}
+  summary{
+    min-height:var(--tap);
+    display:flex;
+    align-items:center;
+    gap:.45rem;
+    padding:.8rem .85rem;
+    color:var(--blue);
+    font-weight:850;
+    cursor:pointer;
+  }
+  footer{padding:1rem .2rem 0;color:var(--muted);text-align:center;font-size:.74rem;line-height:1.5}
+  .skeleton{position:relative;overflow:hidden;background:#e5ece8;color:transparent;border-radius:.35rem}
+  .skeleton::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.72),transparent);
+    animation:shine 1.25s infinite;
+  }
+  @keyframes shine{100%{transform:translateX(100%)}}
+
+  @media (min-width:700px){
+    .app{padding:1.1rem}
+    .topbar{margin:-1.1rem -1.1rem 0;padding:1rem 1.1rem .8rem}
+    h1{font-size:1.42rem}
+    .content{gap:1rem}
+    .hero{grid-template-columns:minmax(18rem,.9fr) minmax(0,1.4fr);align-items:stretch}
+    .hero-main{padding:1.15rem}
+    .metric-value{font-size:4.35rem}
+    .tile-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem}
+    .controls-card{padding:1rem}
+    .control-grid{grid-template-columns:1fr 1.15fr 1fr;align-items:start}
+    .section-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}
+  }
+  @media (min-width:360px) and (max-width:699px){
+    .tile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (min-width:1040px){
+    .content{grid-template-columns:minmax(0,1.15fr) minmax(21rem,.55fr);align-items:start}
+    .hero,.section-row{grid-column:1 / -1}
+    .controls-section{grid-column:1 / -1}
+    .metric-value{font-size:4.85rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .skeleton::after{animation:none}
+    .btn:active{transform:none}
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1><span id="dot" class="dot"></span> Nilan Wohnraumlüftung</h1>
-  <div class="badges" id="badges"></div>
-</header>
-<main>
-  <div id="offline" class="banner bad" style="display:none">
-    <span>⚠️</span>
-    <div><b>Keine Live-Daten von der Lüftung.</b>
-    <span id="offline-detail"></span></div>
-  </div>
-
-  <div class="grid" id="primary"></div>
-
-  <section>
-    <h2>Alle Sensoren <span class="hint" id="sensors-hint"></span></h2>
-    <table id="sensors"><tr><td class="k pulse">lade…</td><td class="v"></td></tr></table>
-  </section>
-
-  <section>
-    <h2>Konfiguration / Einstellungen</h2>
-    <table id="config"></table>
-  </section>
-
-  <section>
-    <h2>Steuerung <span class="hint" id="control-hint"></span></h2>
-    <div id="control-banner" class="banner info"></div>
-    <div class="controls locked" id="controls">
-      <div class="btnrow"><b class="ctl-lbl">Lüfterstufe:</b>
-        <button class="btn" data-fan="0">0</button><button class="btn" data-fan="1">1</button>
-        <button class="btn" data-fan="2">2</button><button class="btn" data-fan="3">3</button>
-        <button class="btn" data-fan="4">4</button></div>
-      <div class="btnrow"><b class="ctl-lbl">Modus:</b>
-        <button class="btn" data-mode="auto">Auto</button><button class="btn" data-mode="heat">Heizen</button>
-        <button class="btn" data-mode="cool">Kühlen</button><button class="btn" data-mode="off">Aus</button></div>
-      <div class="btnrow"><b class="ctl-lbl">Solltemp:</b>
-        <button class="btn" data-sp="-1">−</button><button class="btn" id="sp-val" disabled>– °C</button>
-        <button class="btn" data-sp="1">+</button></div>
-      <div id="ctl-toast" class="ctl-toast"></div>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <p class="eyebrow">Wohnraumlüftung</p>
+        <h1>Nilan CTS600</h1>
+      </div>
+      <div id="connection" class="connection" aria-label="Verbindungsstatus"></div>
     </div>
-  </section>
+    <div id="badges" class="status-strip" aria-live="polite"></div>
+  </header>
 
-  <section>
-    <details>
-      <summary>Rohdaten — alle dekodierten Werte</summary>
-      <table id="raw" style="margin-top:.5rem"></table>
+  <main class="content">
+    <div id="offline" class="notice bad" role="status" aria-live="polite"></div>
+
+    <section class="hero" aria-label="Live-Werte">
+      <article id="room-card" class="hero-main"></article>
+      <div id="primary-grid" class="tile-grid"></div>
+    </section>
+
+    <section class="section controls-section" aria-labelledby="controls-title">
+      <div class="section-head">
+        <h2 id="controls-title">Steuerung</h2>
+        <p id="control-hint" class="section-note">lade...</p>
+      </div>
+      <article class="card controls-card">
+        <div id="control-state" class="control-state"></div>
+        <div id="controls" class="control-grid"></div>
+        <div id="ctl-toast" class="toast" aria-live="polite"></div>
+      </article>
+    </section>
+
+    <div class="section-row">
+      <section class="section" aria-labelledby="sensors-title">
+        <div class="section-head">
+          <h2 id="sensors-title">Sensoren</h2>
+          <p id="sensors-hint" class="section-note"></p>
+        </div>
+        <article id="sensors" class="card data-card"></article>
+      </section>
+
+      <section class="section" aria-labelledby="config-title">
+        <div class="section-head">
+          <h2 id="config-title">System</h2>
+          <p class="section-note">API-Metadaten</p>
+        </div>
+        <article id="config" class="card data-card"></article>
+      </section>
+    </div>
+
+    <details class="card">
+      <summary id="raw-title"></summary>
+      <div id="raw" class="data-card"></div>
     </details>
-  </section>
 
-  <footer>
-    <span id="updated">–</span><br>
-    Nilan CTS600 · <span id="ver"></span> · Web-Bedienoberfläche (TUE-55)
-  </footer>
-</main>
+    <footer>
+      <span id="updated">Noch keine Aktualisierung.</span><br>
+      <span id="ver">Version wird geladen.</span>
+    </footer>
+  </main>
+</div>
 
 <script>
 const POLL_FALLBACK = 5000;
-let META = null, pollMs = POLL_FALLBACK, timer = null, LAST_STATUS = null;
+let META = null;
+let LAST_STATUS = null;
+let pollMs = POLL_FALLBACK;
+let timer = null;
+let commandBusy = false;
 
-const lbl = (k) => (META && META.labels && META.labels[k]) || k;
-const unit = (k) => (META && META.units && META.units[k]) || "";
-const desc = (k) => (META && META.descriptions && META.descriptions[k]) || "";
-const esc = (s) => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const iconPaths = {
+  connected: '<path d="M5 12.5a9 9 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M12 20h.01"/>',
+  offline: '<path d="m2 2 20 20"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M5 12.5a9 9 0 0 1 5.2-2.4"/><path d="M14.4 10.2a9 9 0 0 1 4.6 2.3"/><path d="M12 20h.01"/>',
+  thermo: '<path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0Z"/><path d="M12 8v7"/>',
+  fan: '<path d="M12 12a2 2 0 1 0 0 .01"/><path d="M12 10c0-4 2-7 4.4-7 1.6 0 2.6 1.5 2.6 3 0 2.5-2.6 4-5 4"/><path d="M10.3 13c-3.5 2-7 2-8.2-.1-.8-1.4 0-3 1.3-3.8 2.2-1.2 4.8.2 6 2.3"/><path d="M13.7 13c3.5 2 5.2 5 4 7.1-.8 1.4-2.6 1.5-3.9.8-2.2-1.3-2.2-4.3-1-6.4"/>',
+  mode: '<path d="M4 12a8 8 0 0 1 14.4-4.8"/><path d="M18 3v4h-4"/><path d="M20 12a8 8 0 0 1-14.4 4.8"/><path d="M6 21v-4h4"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/>',
+  status: '<path d="M12 3v18"/><path d="M5 8h14"/><path d="M7 16h10"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+  lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  unlock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/>',
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  raw: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+  sensor: '<path d="M12 2v3"/><path d="M12 19v3"/><path d="M4.22 4.22l2.12 2.12"/><path d="m17.66 17.66 2.12 2.12"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="m4.22 19.78 2.12-2.12"/><path d="m17.66 6.34 2.12-2.12"/><circle cx="12" cy="12" r="4"/>'
+};
 
-function fmt(v, u){
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "number") return (Number.isInteger(v) ? v : v.toFixed(1)) + (u ? " " + u : "");
-  if (typeof v === "boolean") return v ? "ja" : "nein";
-  return String(v) + (u ? " " + u : "");
-}
-function tile(key, val, u, note){
-  const f = fmt(val, u);
-  const body = f === null ? `<div class="v na">–</div>`
-    : `<div class="v">${esc(f)}</div>`;
-  const d = desc(key);
-  const noteHtml = note ? `<div class="note">${esc(note)}</div>` : "";
-  return `<div class="tile"${d ? ` title="${esc(d)}"` : ""}>`
-    + `<div class="k">${esc(lbl(key))}</div>${body}${noteHtml}</div>`;
-}
-function rows(obj, mapKey){
-  const keys = Object.keys(obj).sort();
-  if (!keys.length) return `<tr><td class="k">keine Daten</td><td class="v"></td></tr>`;
-  return keys.map(k => {
-    const f = fmt(obj[k], unit(k));
-    const d = mapKey ? desc(k) : "";
-    const sub = d ? `<div class="sub">${esc(d)}</div>` : "";
-    return `<tr><td class="k">${esc(mapKey ? lbl(k) : k)}${sub}</td>
-      <td class="v">${f === null ? '–' : esc(f)}</td></tr>`;
-  }).join("");
-}
-function ago(ts){
-  if (!ts) return "noch nie";
-  const s = Math.max(0, Math.round(Date.now()/1000 - ts));
-  if (s < 60) return s + " s";
-  if (s < 3600) return Math.round(s/60) + " min";
-  return Math.round(s/3600) + " h";
+function icon(name, extraClass){
+  const path = iconPaths[name] || iconPaths.info;
+  const cls = extraClass ? "icon " + extraClass : "icon";
+  return '<svg class="' + cls + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
 }
 
-async function loadMeta(){
-  try{
-    const r = await fetch("api/meta", {cache:"no-store"});
-    if (!r.ok) return;
-    META = await r.json();
-    if (META.poll_seconds) pollMs = Math.max(2000, META.poll_seconds * 1000);
-    document.getElementById("ver").textContent = "v" + (META.app_version || "?");
-    renderControlGate();
-  }catch(e){/* keep defaults */}
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labelFor = (k) => (META?.labels && META.labels[k]) || k;
+const unitFor = (k) => (META?.units && META.units[k]) || "";
+const descFor = (k) => (META?.descriptions && META.descriptions[k]) || "";
+
+function formatValue(value, unit){
+  if (value === null || value === undefined || value === "") return null;
+  let text;
+  if (typeof value === "number") text = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  else if (typeof value === "boolean") text = value ? "ja" : "nein";
+  else text = String(value);
+  return unit ? text + " " + unit : text;
 }
 
-function renderControlGate(){
-  const banner = document.getElementById("control-banner");
-  const hint = document.getElementById("control-hint");
-  const ro = !META || META.read_only;
-  const controls = document.getElementById("controls");
-  if (ro){
-    banner.className = "banner warn";
-    banner.innerHTML = "🔒 <div><b>Steuerung gesperrt (read-only).</b> "
-      + "Der Live-Bus läuft und liefert echte Daten — Schreibzugriff (Lüfter/Modus/Soll) "
-      + "wird nach kontrollierten Write-Tests freigeschaltet (Phase 2).</div>";
-    hint.textContent = "deaktiviert";
-    controls.classList.add("locked");
-  } else {
-    banner.className = "banner info";
-    banner.innerHTML = "✅ <div>Steuerung aktiv. Tippe einen Wert — die Anlage schaltet sofort. "
-      + "Sicherheitsrelevante Aktionen (Aus, Moduswechsel) fragen nochmal nach.</div>";
-    hint.textContent = "aktiv";
-    controls.classList.remove("locked");
-    wireControls();
-  }
+function splitUnit(text, unit){
+  if (!text || !unit || !text.endsWith(" " + unit)) return esc(text || "–");
+  return esc(text.slice(0, -(unit.length + 1))) + ' <span class="metric-unit">' + esc(unit) + '</span>';
 }
 
-let controlsWired = false;
-function wireControls(){
-  if (controlsWired) return;
-  controlsWired = true;
-  document.querySelectorAll("#controls button[data-fan]").forEach(b =>
-    b.addEventListener("click", () => {
-      const lvl = parseInt(b.dataset.fan, 10);
-      const danger = lvl === 0;
-      if (danger && !confirm("Lüftung wirklich AUSschalten (Stufe 0)?")) return;
-      sendCmd("api/fan", {level: lvl}, b, `Lüfterstufe ${lvl}`);
-    }));
-  document.querySelectorAll("#controls button[data-mode]").forEach(b =>
-    b.addEventListener("click", () => {
-      const m = b.dataset.mode;
-      const names = {auto:"Auto", heat:"Heizen", cool:"Kühlen", off:"Aus"};
-      if (!confirm(`Betriebsmodus auf "${names[m]}" umschalten?`)) return;
-      sendCmd("api/mode", {mode: m}, b, `Modus ${names[m]}`);
-    }));
-  document.querySelectorAll("#controls button[data-sp]").forEach(b =>
-    b.addEventListener("click", () => {
-      const delta = parseInt(b.dataset.sp, 10);
-      const cur = (LAST_STATUS && Number.isFinite(LAST_STATUS.setpoint)) ? LAST_STATUS.setpoint : null;
-      if (cur === null){ toast("Kein aktueller Sollwert bekannt.", "err"); return; }
-      const lo = META?.controls?.setpoint?.min ?? 5, hi = META?.controls?.setpoint?.max ?? 30;
-      const next = Math.min(hi, Math.max(lo, cur + delta));
-      if (next === cur){ toast(`Grenze erreicht (${lo}–${hi} °C).`); return; }
-      sendCmd("api/temp", {setpoint: next}, b, `Solltemperatur ${next} °C`);
-    }));
+function modeLabel(value){
+  const names = {auto:"Auto", heat:"Heizen", cool:"Kühlen", off:"Aus"};
+  return names[value] || value || "–";
 }
 
-async function sendCmd(path, body, btn, label){
-  const toastEl = document.getElementById("ctl-toast");
-  toastEl.className = "ctl-toast"; toastEl.textContent = "Sende: " + label + " …";
-  btn.classList.add("busy");
-  try{
-    const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify(body), cache:"no-store"});
-    const data = await r.json().catch(()=> ({}));
-    if (!r.ok) throw new Error(data.detail || data.error || ("HTTP " + r.status));
-    toast("✓ " + label + " gesetzt.", "ok");
-    render(data);            // API returns fresh status — reflect immediately
-  }catch(e){
-    toast("✗ " + label + " fehlgeschlagen: " + e.message, "err");
-  }finally{
-    btn.classList.remove("busy");
-    clearTimeout(timer); poll();   // force a fresh poll cycle
-  }
-}
-function toast(msg, kind){
-  const t = document.getElementById("ctl-toast");
-  t.className = "ctl-toast" + (kind ? " " + kind : "");
-  t.textContent = msg;
+function iconForKey(key){
+  if (key === "fan_level" || /stufe|fan|flow/i.test(key)) return "fan";
+  if (key === "mode") return "mode";
+  if (key === "setpoint" || key === "thermostat") return "target";
+  if (key === "status" || key === "display") return "status";
+  if (/^t_|^T\d+|temp|temperature/i.test(key)) return "thermo";
+  return "sensor";
 }
 
-function setOffline(on, detail){
-  document.getElementById("offline").style.display = on ? "flex" : "none";
-  document.getElementById("offline-detail").textContent = detail || "";
-  const dot = document.getElementById("dot");
-  dot.className = "dot " + (on ? "off" : "on");
+function isInjectedRoomValue(key){
+  const d = descFor(key);
+  return key === "t_room" && /injiziert|fallback|panel ist durch den esp ersetzt/i.test(d);
+}
+
+function skeleton(){
+  $("room-card").innerHTML = '<div class="metric-title"><span class="skeleton">Raumtemperatur</span></div><div class="metric-value skeleton">--</div><p class="metric-desc skeleton">Live-Daten werden geladen.</p>';
+  $("primary-grid").innerHTML = Array.from({length:6}, () => '<article class="tile"><div class="metric-title skeleton">Wert</div><div class="tile-value skeleton">--</div><small class="skeleton">Beschreibung</small></article>').join("");
+  $("sensors").innerHTML = '<div class="row"><div class="row-key skeleton">Sensoren laden</div><div class="row-value skeleton">--</div></div>';
+  $("config").innerHTML = '<div class="row"><div class="row-key skeleton">System laden</div><div class="row-value skeleton">--</div></div>';
+  $("raw").innerHTML = "";
+  $("raw-title").innerHTML = icon("raw") + " Rohdaten";
 }
 
 function renderBadges(st){
-  const b = [];
-  b.push(`<span class="badge ${st.connected ? 'live':''}">${st.connected ? '● verbunden':'○ getrennt'}</span>`);
-  if (st.mockup) b.push(`<span class="badge mock">MOCKUP (keine echte Hardware)</span>`);
-  if (st.read_only) b.push(`<span class="badge ro">read-only</span>`);
-  document.getElementById("badges").innerHTML = b.join("");
+  const connected = !!st?.connected;
+  const items = [
+    '<span class="chip ' + (connected ? "live" : "bad") + '">' + (connected ? "verbunden" : "getrennt") + '</span>'
+  ];
+  if (st?.mockup) items.push('<span class="chip warn">Mockup</span>');
+  if (st?.read_only) items.push('<span class="chip warn">read-only</span>');
+  if (st && st.last_update_ts) items.push('<span class="chip">vor ' + esc(ago(st.last_update_ts)) + '</span>');
+  $("badges").innerHTML = items.join("");
+
+  const con = $("connection");
+  con.className = "connection " + (connected ? "is-live" : "is-offline");
+  con.innerHTML = icon(connected ? "connected" : "offline", "icon-lg");
+}
+
+function setOffline(visible, headline, detail){
+  const box = $("offline");
+  if (!visible){
+    box.className = "notice bad";
+    box.innerHTML = "";
+    return;
+  }
+  box.className = "notice bad is-visible";
+  box.innerHTML = icon("offline", "icon-lg") + '<div><strong>' + esc(headline) + '</strong><span>' + esc(detail || "") + '</span></div>';
+}
+
+function tile(key, value){
+  const u = unitFor(key);
+  const f = formatValue(value, u);
+  const d = descFor(key);
+  const valueClass = f === null ? "tile-value na" : (String(f).length > 10 ? "tile-value text" : "tile-value");
+  return '<article class="tile">'
+    + '<div class="metric-title"><span>' + icon(iconForKey(key)) + esc(labelFor(key)) + '</span></div>'
+    + '<div class="' + valueClass + '">' + (f === null ? "–" : esc(f)) + '</div>'
+    + (d ? '<small>' + esc(d) + '</small>' : '<small>Keine Beschreibung aus /api/meta.</small>')
+    + '</article>';
+}
+
+function renderRoom(st){
+  const key = "t_room";
+  const u = unitFor(key);
+  const f = formatValue(st?.[key], u);
+  const injected = isInjectedRoomValue(key);
+  $("room-card").innerHTML =
+    '<div class="metric-title"><span>' + icon("thermo") + esc(labelFor(key)) + '</span>'
+    + (injected ? '<span class="inline-tag warn">injizierter Wert</span>' : '<span class="inline-tag">Live-Wert</span>')
+    + '</div>'
+    + '<div class="metric-value">' + splitUnit(f, u) + '</div>'
+    + '<p class="metric-desc">' + esc(descFor(key) || "Keine Beschreibung aus /api/meta.") + '</p>';
+}
+
+function rows(obj, useMeta){
+  const keys = Object.keys(obj || {}).sort((a,b) => a.localeCompare(b, "de"));
+  if (!keys.length) return '<div class="row"><div class="row-key">keine Daten</div><div class="row-value">–</div></div>';
+  return keys.map(k => {
+    const f = formatValue(obj[k], unitFor(k));
+    const d = useMeta ? descFor(k) : "";
+    return '<div class="row">'
+      + '<div class="row-key">' + esc(useMeta ? labelFor(k) : k)
+      + (d ? '<p class="row-desc">' + esc(d) + '</p>' : '')
+      + '</div>'
+      + '<div class="row-value">' + esc(f ?? "–") + '</div>'
+      + '</div>';
+  }).join("");
+}
+
+function configRows(st){
+  const cfg = {};
+  if (META){
+    cfg["Datenquelle"] = META.mockup ? "Mockup" : "Live-Gerät";
+    cfg["Schreibzugriff"] = META.read_only ? "gesperrt" : "aktiv";
+    cfg["Abfrageintervall"] = formatValue(META.poll_seconds, "s") || "–";
+    if (META.sensor_mapping) cfg["Sensor-Mapping"] = Object.entries(META.sensor_mapping).map(([k,v]) => labelFor(k) + "=" + v).join(", ");
+    if (META.base_topic) cfg["MQTT-Topic"] = META.base_topic;
+    if (META.esp_bridge) cfg["ESP-Bridge"] = (META.esp_bridge.ip || "–") + ":" + (META.esp_bridge.port || "–");
+  }
+  if (st){
+    cfg[labelFor("mode")] = modeLabel(st.mode);
+    cfg[labelFor("setpoint")] = formatValue(st.setpoint, unitFor("setpoint")) || "–";
+    cfg[labelFor("fan_level")] = formatValue(st.fan_level, unitFor("fan_level")) || "–";
+    cfg[labelFor("status")] = formatValue(st.status, unitFor("status")) || "–";
+  }
+  return rows(cfg, false);
+}
+
+function ago(ts){
+  if (!ts) return "noch nie";
+  const seconds = Math.max(0, Math.round(Date.now()/1000 - ts));
+  if (seconds < 60) return seconds + " s";
+  if (seconds < 3600) return Math.round(seconds/60) + " min";
+  if (seconds < 86400) return Math.round(seconds/3600) + " h";
+  return Math.round(seconds/86400) + " d";
+}
+
+function controlsLocked(){
+  return !META || !!META.read_only || !LAST_STATUS || !LAST_STATUS.connected || commandBusy;
+}
+
+function renderControlState(){
+  const ro = !!META?.read_only;
+  const offline = LAST_STATUS && !LAST_STATUS.connected;
+  const locked = controlsLocked();
+  let title = "Steuerung wird geladen";
+  let detail = "Die Bedienung bleibt gesperrt, bis /api/meta und /api/status geladen sind.";
+  let stateIcon = "lock";
+  let stateClass = "";
+  if (ro){
+    title = "Schreibzugriff gesperrt";
+    detail = "Die Live-Werte bleiben sichtbar. Steuerbefehle sind deaktiviert, solange read_only aktiv ist.";
+    stateClass = "warn";
+  } else if (offline){
+    title = "Keine Verbindung zur Anlage";
+    detail = "Steuerung ist deaktiviert, bis wieder Live-Daten eintreffen.";
+    stateClass = "bad";
+  } else if (!locked){
+    title = "Steuerung aktiv";
+    detail = "Änderungen werden direkt an die API gesendet. Moduswechsel und Ausschalten müssen bestätigt werden.";
+    stateIcon = "unlock";
+    stateClass = "info";
+  }
+  $("control-state").className = "control-state" + (stateClass ? " " + stateClass : "");
+  $("control-state").innerHTML = icon(stateIcon) + '<div><strong>' + title + '</strong><br>' + detail + '</div>';
+  $("control-hint").textContent = locked ? "gesperrt" : "aktiv";
+}
+
+function renderControls(){
+  renderControlState();
+  const locked = controlsLocked();
+  const fanCfg = META?.controls?.fan || {min:0,max:4,off_level:0};
+  const fanMin = Number.isFinite(fanCfg.min) ? fanCfg.min : 0;
+  const fanMax = Number.isFinite(fanCfg.max) ? fanCfg.max : 4;
+  const fanButtons = [];
+  for (let level = fanMin; level <= fanMax; level += 1){
+    const active = LAST_STATUS && Number(LAST_STATUS.fan_level) === level;
+    const danger = level === fanCfg.off_level;
+    fanButtons.push('<button class="btn' + (active ? " is-active" : "") + (danger ? " is-danger" : "") + '" type="button" data-action="fan" data-value="' + level + '"' + (locked ? " disabled" : "") + ' aria-label="' + esc(labelFor("fan_level") + " " + level) + '">' + level + '</button>');
+  }
+
+  const modes = Array.isArray(META?.controls?.mode) ? META.controls.mode : ["auto","heat","cool","off"];
+  const modeButtons = modes.map(mode => {
+    const active = LAST_STATUS && LAST_STATUS.mode === mode;
+    const danger = mode === "off";
+    return '<button class="btn' + (active ? " is-active" : "") + (danger ? " is-danger" : "") + '" type="button" data-action="mode" data-value="' + esc(mode) + '"' + (locked ? " disabled" : "") + '>' + esc(modeLabel(mode)) + '</button>';
+  }).join("");
+
+  const spCfg = META?.controls?.setpoint || {min:5,max:30,unit:unitFor("setpoint") || "C"};
+  const spUnit = spCfg.unit || unitFor("setpoint");
+  const spText = formatValue(LAST_STATUS?.setpoint, spUnit) || "–";
+  $("controls").innerHTML =
+    '<div class="control-group">'
+      + '<div class="control-label"><span>' + icon("fan") + esc(labelFor("fan_level")) + '</span><span class="inline-tag">' + esc(formatValue(LAST_STATUS?.fan_level, unitFor("fan_level")) || "–") + '</span></div>'
+      + '<div class="segmented">' + fanButtons.join("") + '</div>'
+    + '</div>'
+    + '<div class="control-group">'
+      + '<div class="control-label"><span>' + icon("mode") + esc(labelFor("mode")) + '</span><span class="inline-tag">' + esc(modeLabel(LAST_STATUS?.mode)) + '</span></div>'
+      + '<div class="segmented">' + modeButtons + '</div>'
+    + '</div>'
+    + '<div class="control-group">'
+      + '<div class="control-label"><span>' + icon("target") + esc(labelFor("setpoint")) + '</span><span class="inline-tag">' + esc((spCfg.min ?? "–") + "–" + (spCfg.max ?? "–") + " " + spUnit) + '</span></div>'
+      + '<div class="stepper">'
+        + '<button class="btn" type="button" data-action="setpoint" data-delta="-1"' + (locked ? " disabled" : "") + ' aria-label="Solltemperatur senken">' + icon("minus") + '</button>'
+        + '<div class="stepper-value">' + esc(spText) + '</div>'
+        + '<button class="btn" type="button" data-action="setpoint" data-delta="1"' + (locked ? " disabled" : "") + ' aria-label="Solltemperatur erhöhen">' + icon("plus") + '</button>'
+      + '</div>'
+    + '</div>';
 }
 
 function render(st){
   LAST_STATUS = st;
   renderBadges(st);
   const offline = !st.connected;
-  setOffline(offline, st.last_error ? "Fehler: " + st.last_error
-    : "Bridge offline – keine Verbindung zur Lüftung.");
+  setOffline(offline, "Keine Live-Daten von der Lüftung.", st.last_error ? "Fehler: " + st.last_error : "Bridge offline oder Anlage nicht erreichbar.");
+  renderRoom(st);
 
-  const prim = [
-    tile("t_room", st.t_room, "°C", "Panel-Fühler ersetzt → injizierter Wert, kein Live-Raumfühler"),
-    tile("t_supply", st.t_supply, "°C"),
-    tile("t_exhaust", st.t_exhaust, "°C"),
-    tile("mode", st.mode),
-    tile("fan_level", st.fan_level),
-    tile("setpoint", st.setpoint, "°C"),
-    tile("status", st.status),
-  ];
-  if (st.display) prim.push(tile("display", st.display));
-  document.getElementById("primary").innerHTML = prim.join("");
+  const primaryKeys = ["t_supply","t_exhaust","fan_level","mode","setpoint","status"];
+  if (st.display) primaryKeys.push("display");
+  $("primary-grid").innerHTML = primaryKeys.map(k => tile(k, k === "mode" ? modeLabel(st[k]) : st[k])).join("");
 
-  const sensors = st.sensors || {};
-  document.getElementById("sensors").innerHTML = rows(sensors, true);
-  document.getElementById("sensors-hint").textContent =
-    Object.keys(sensors).length + " Werte";
+  const sensorCount = Object.keys(st.sensors || {}).length;
+  $("sensors").innerHTML = rows(st.sensors || {}, true);
+  $("sensors-hint").textContent = sensorCount + " Werte";
+  $("config").innerHTML = configRows(st);
+  $("raw-title").innerHTML = icon("raw") + " Rohdaten";
+  $("raw").innerHTML = rows(st.raw || {}, true);
+  $("updated").textContent = "Letzte Aktualisierung: " + (offline ? "keine Verbindung" : "vor " + ago(st.last_update_ts)) + " · Auto-Refresh alle " + Math.round(pollMs/1000) + " s";
+  if (META?.app_version) $("ver").textContent = "nilan-api v" + META.app_version + " · same-origin Dashboard";
+  renderControls();
+}
 
-  // config / settings
-  const cfg = {};
-  if (META){
-    cfg["Modus (mockup)"] = META.mockup ? "MOCKUP" : "Live-Gerät";
-    cfg["Schreibzugriff"] = META.read_only ? "gesperrt (read-only)" : "frei";
-    cfg["Abfrageintervall"] = (META.poll_seconds||"?") + " s";
-    if (META.esp_bridge) cfg["ESP-Bridge"] =
-      (META.esp_bridge.ip ? META.esp_bridge.ip : "—") + ":" + META.esp_bridge.port;
-    if (META.sensor_mapping) cfg["Sensor-Mapping"] =
-      Object.entries(META.sensor_mapping).map(([k,v])=>k+"="+v).join(", ");
-    cfg["MQTT-Topic"] = META.base_topic;
+async function loadMeta(){
+  try{
+    const response = await fetch("api/meta", {cache:"no-store"});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    META = await response.json();
+    if (META.poll_seconds) pollMs = Math.max(2000, Number(META.poll_seconds) * 1000);
+    $("ver").textContent = "nilan-api v" + (META.app_version || "?") + " · same-origin Dashboard";
+  }catch(e){
+    META = null;
+    $("ver").textContent = "Metadaten nicht erreichbar";
+    toast("Metadaten konnten nicht geladen werden: " + e.message, "err");
   }
-  cfg["Aktueller Modus"] = st.mode ?? "–";
-  cfg["Aktuelle Solltemperatur"] = fmt(st.setpoint, "°C") ?? "–";
-  cfg["Aktuelle Lüfterstufe"] = st.fan_level ?? "–";
-  cfg["Geräte-Status"] = st.status ?? "–";
-  document.getElementById("config").innerHTML = Object.entries(cfg)
-    .map(([k,v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("");
+  renderControls();
+}
 
-  // raw (everything the driver decoded)
-  document.getElementById("raw").innerHTML = rows(st.raw || {}, true);
+function toast(message, kind){
+  const t = $("ctl-toast");
+  t.className = "toast" + (kind ? " " + kind : "");
+  t.textContent = message || "";
+}
 
-  // reflect current state in the controls
-  const sp = document.getElementById("sp-val");
-  if (sp) sp.textContent = (st.setpoint ?? "–") + " °C";
-  document.querySelectorAll("#controls button[data-fan]").forEach(b =>
-    b.classList.toggle("active", parseInt(b.dataset.fan,10) === st.fan_level));
-  document.querySelectorAll("#controls button[data-mode]").forEach(b =>
-    b.classList.toggle("active", b.dataset.mode === st.mode));
+async function sendCommand(path, body, label){
+  if (commandBusy || controlsLocked()) return;
+  commandBusy = true;
+  renderControls();
+  toast("Sende: " + label + " ...");
+  try{
+    const response = await fetch(path, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body),
+      cache:"no-store"
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || data.error || "HTTP " + response.status);
+    toast(label + " gesetzt.", "ok");
+    render(data);
+  }catch(e){
+    toast(label + " fehlgeschlagen: " + e.message, "err");
+  }finally{
+    commandBusy = false;
+    renderControls();
+    clearTimeout(timer);
+    poll();
+  }
+}
 
-  document.getElementById("updated").textContent =
-    "Letzte Aktualisierung: " + (offline ? "—" : "vor " + ago(st.last_update_ts))
-    + " · Auto-Refresh alle " + Math.round(pollMs/1000) + " s";
+function handleControlClick(event){
+  const btn = event.target.closest("button[data-action]");
+  if (!btn || btn.disabled) return;
+  const action = btn.dataset.action;
+  if (action === "fan"){
+    const level = parseInt(btn.dataset.value, 10);
+    const offLevel = META?.controls?.fan?.off_level ?? 0;
+    if (level === offLevel && !confirm("Lüfter wirklich ausschalten?")) return;
+    sendCommand("api/fan", {level}, labelFor("fan_level") + " " + level);
+  }
+  if (action === "mode"){
+    const mode = btn.dataset.value;
+    if (mode !== LAST_STATUS?.mode && !confirm('Betriebsmodus auf "' + modeLabel(mode) + '" umschalten?')) return;
+    sendCommand("api/mode", {mode}, labelFor("mode") + " " + modeLabel(mode));
+  }
+  if (action === "setpoint"){
+    const current = Number(LAST_STATUS?.setpoint);
+    if (!Number.isFinite(current)){ toast("Kein aktueller Sollwert bekannt.", "err"); return; }
+    const cfg = META?.controls?.setpoint || {min:5,max:30};
+    const next = Math.min(Number(cfg.max), Math.max(Number(cfg.min), current + parseInt(btn.dataset.delta, 10)));
+    if (next === current){ toast("Grenze erreicht (" + cfg.min + "–" + cfg.max + " " + (cfg.unit || unitFor("setpoint")) + ")."); return; }
+    sendCommand("api/temp", {setpoint:next}, labelFor("setpoint") + " " + formatValue(next, cfg.unit || unitFor("setpoint")));
+  }
 }
 
 async function poll(){
   try{
-    const r = await fetch("api/status", {cache:"no-store"});
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    render(await r.json());
+    const response = await fetch("api/status", {cache:"no-store"});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    render(await response.json());
   }catch(e){
-    setOffline(true, "Kein Kontakt zum Server (" + e.message + ").");
-    document.getElementById("badges").innerHTML =
-      `<span class="badge">○ Server nicht erreichbar</span>`;
-    document.getElementById("updated").textContent = "Verbindung verloren – neuer Versuch…";
+    setOffline(true, "Server nicht erreichbar.", "Neuer Versuch läuft automatisch. Detail: " + e.message);
+    renderBadges({connected:false});
+    $("updated").textContent = "Verbindung verloren · neuer Versuch...";
+    renderControls();
   }
   timer = setTimeout(poll, pollMs);
 }
 
+$("controls").addEventListener("click", handleControlClick);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && timer){ clearTimeout(timer); poll(); }
+  if (!document.hidden && timer){
+    clearTimeout(timer);
+    poll();
+  }
 });
 
-(async () => { await loadMeta(); poll(); })();
+skeleton();
+(async () => {
+  await loadMeta();
+  poll();
+})();
 </script>
 </body>
 </html>
