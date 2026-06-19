@@ -72,6 +72,51 @@ Then run the §9 control verification (fan 1→2→3, mode, setpoint set+readbac
 confirm the provisional `NILAN_T_SUPPLY_KEY`/`NILAN_T_EXHAUST_KEY` mapping against
 the unit's register dump (TUE-16 §11).
 
+## Web dashboard (TUE-55 — Phase 1, read-only)
+
+A self-hosted, mobile-friendly **web UI** served by the same `nilan-api` app, so
+it lives behind the same Caddy basic-auth as the API (local-first, no extra
+service or port).
+
+| What | Where |
+|---|---|
+| **URL (fixed local address)** | `http://tj-lt:8643/` (or `http://192.168.1.103:8643/`) |
+| **Login** | user `nilan` / pass `nilan-luft-2026` — **change this** (see below) |
+| **Auto-start** | `docker compose` `restart: unless-stopped` (survives reboot) |
+| **Refresh** | auto-polls `/api/status` every `NILAN_POLL_SECONDS` (mobile-aware) |
+
+What it shows (Phase 1):
+
+- Live tiles: Raum-/Zuluft-/Ablufttemperatur, Modus, Lüfterstufe, Solltemperatur, Status.
+- **Alle Sensoren** + **Rohdaten** (the full decoded snapshot — every value the
+  frodef driver scraped; humidity/filter/hours appear here automatically once the
+  live unit is on the bus, no code change needed).
+- **Konfiguration / Einstellungen** ("how it's configured"): mockup/live, read-only
+  flag, poll interval, ESP-bridge target, sensor mapping, MQTT base topic, current
+  mode/setpoint/fan/status.
+- Clear **"Keine Live-Daten / Bridge offline"** banner when the bus is down.
+- **Steuerung** (controls) are rendered but **locked** while `NILAN_READ_ONLY=1`
+  (Phase 2 unlocks them once the live bus from TUE-54 is verified).
+
+Endpoints added: `GET /` (dashboard), `GET /api/meta` (self-describing
+labels/units/config), and `raw` + `read_only` fields on `GET /api/status`.
+
+### Update / operate the dashboard
+
+```bash
+cd ~/nilan-cts600
+# after editing app/dashboard.html or app/nilan_api.py:
+docker compose up -d --build nilan-api      # rebuild + restart, ~10s
+
+# change the web password:
+docker run --rm caddy:2 caddy hash-password --plaintext '<new-pass>'
+# paste the hash into caddy/Caddyfile (basic_auth nilan <hash>), then:
+docker compose restart caddy
+```
+
+> **Phase 2 (control)** stays disabled until `TUE-54` (GND fix → live bus) is done
+> and write-tests pass; then set `NILAN_READ_ONLY=0` and the UI controls activate.
+
 ## Contract (plan §8)
 
 | Method | Endpoint / topic | Body / payload |

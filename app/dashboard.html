@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0f172a">
+<title>Nilan Wohnraumlüftung</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --card2:#172033; --line:#334155;
+    --fg:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --ok:#22c55e;
+    --warn:#f59e0b; --bad:#ef4444; --chip:#0b1220;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) 2rem env(safe-area-inset-left);}
+  header{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#0f172a 70%,rgba(15,23,42,0));
+    padding:.9rem 1rem .6rem;}
+  h1{font-size:1.15rem;margin:0 0 .45rem;display:flex;align-items:center;gap:.5rem}
+  h1 .dot{width:.7rem;height:.7rem;border-radius:50%;background:var(--muted);flex:none}
+  h1 .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  h1 .dot.off{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+  .badges{display:flex;flex-wrap:wrap;gap:.35rem;font-size:.72rem}
+  .badge{background:var(--chip);border:1px solid var(--line);color:var(--muted);
+    padding:.15rem .5rem;border-radius:999px;white-space:nowrap}
+  .badge.live{color:var(--ok);border-color:#14532d}
+  .badge.mock{color:var(--warn);border-color:#78350f}
+  .badge.ro{color:var(--accent);border-color:#0c4a6e}
+  main{padding:0 1rem;max-width:760px;margin:0 auto}
+  .banner{border-radius:12px;padding:.8rem 1rem;margin:.6rem 0;font-size:.9rem;
+    display:flex;gap:.6rem;align-items:flex-start;line-height:1.35}
+  .banner.bad{background:#3f1d1d;border:1px solid #7f1d1d;color:#fecaca}
+  .banner.warn{background:#3a2c10;border:1px solid #78350f;color:#fde68a}
+  .banner.info{background:#0b2a3a;border:1px solid #0c4a6e;color:#bae6fd}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin:.6rem 0}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:.85rem .9rem}
+  .tile .k{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .tile .v{font-size:1.7rem;font-weight:650;margin-top:.2rem;line-height:1.1}
+  .tile .v small{font-size:.95rem;color:var(--muted);font-weight:500}
+  .tile .v.na{color:var(--muted);font-size:1.1rem;font-weight:500}
+  section{margin:1.3rem 0}
+  section h2{font-size:.95rem;color:var(--fg);margin:0 0 .55rem;display:flex;
+    justify-content:space-between;align-items:baseline}
+  section h2 .hint{font-size:.72rem;color:var(--muted);font-weight:400}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  td{padding:.5rem .8rem;border-top:1px solid var(--line);font-size:.88rem;vertical-align:top}
+  tr:first-child td{border-top:none}
+  td.k{color:var(--muted);width:55%}
+  td.v{text-align:right;font-variant-numeric:tabular-nums}
+  details summary{cursor:pointer;color:var(--accent);font-size:.85rem;padding:.3rem 0}
+  .controls{opacity:.55;pointer-events:none}
+  .btnrow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0}
+  .btn{background:var(--card2);border:1px solid var(--line);color:var(--fg);
+    padding:.55rem .9rem;border-radius:10px;font-size:.9rem}
+  footer{color:var(--muted);font-size:.72rem;text-align:center;margin:1.6rem 1rem 0;line-height:1.5}
+  .pulse{animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="dot" class="dot"></span> Nilan Wohnraumlüftung</h1>
+  <div class="badges" id="badges"></div>
+</header>
+<main>
+  <div id="offline" class="banner bad" style="display:none">
+    <span>⚠️</span>
+    <div><b>Keine Live-Daten von der Lüftung.</b>
+    <span id="offline-detail"></span></div>
+  </div>
+
+  <div class="grid" id="primary"></div>
+
+  <section>
+    <h2>Alle Sensoren <span class="hint" id="sensors-hint"></span></h2>
+    <table id="sensors"><tr><td class="k pulse">lade…</td><td class="v"></td></tr></table>
+  </section>
+
+  <section>
+    <h2>Konfiguration / Einstellungen</h2>
+    <table id="config"></table>
+  </section>
+
+  <section>
+    <h2>Steuerung <span class="hint" id="control-hint"></span></h2>
+    <div id="control-banner" class="banner info"></div>
+    <div class="controls" id="controls">
+      <div class="btnrow"><b style="align-self:center;color:var(--muted);font-size:.8rem">Lüfterstufe:</b>
+        <span class="btn">0</span><span class="btn">1</span><span class="btn">2</span>
+        <span class="btn">3</span><span class="btn">4</span></div>
+      <div class="btnrow"><b style="align-self:center;color:var(--muted);font-size:.8rem">Modus:</b>
+        <span class="btn">Auto</span><span class="btn">Heizen</span>
+        <span class="btn">Kühlen</span><span class="btn">Aus</span></div>
+      <div class="btnrow"><b style="align-self:center;color:var(--muted);font-size:.8rem">Solltemp:</b>
+        <span class="btn">−</span><span class="btn" id="sp-val">– °C</span><span class="btn">+</span></div>
+    </div>
+  </section>
+
+  <section>
+    <details>
+      <summary>Rohdaten — alle dekodierten Werte</summary>
+      <table id="raw" style="margin-top:.5rem"></table>
+    </details>
+  </section>
+
+  <footer>
+    <span id="updated">–</span><br>
+    Nilan CTS600 · <span id="ver"></span> · read-only Dashboard (Phase 1, TUE-55)
+  </footer>
+</main>
+
+<script>
+const POLL_FALLBACK = 5000;
+let META = null, pollMs = POLL_FALLBACK, timer = null;
+
+const lbl = (k) => (META && META.labels && META.labels[k]) || k;
+const unit = (k) => (META && META.units && META.units[k]) || "";
+const esc = (s) => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function fmt(v, u){
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") return (Number.isInteger(v) ? v : v.toFixed(1)) + (u ? " " + u : "");
+  if (typeof v === "boolean") return v ? "ja" : "nein";
+  return String(v) + (u ? " " + u : "");
+}
+function tile(key, val, u){
+  const f = fmt(val, u);
+  const body = f === null ? `<div class="v na">–</div>`
+    : `<div class="v">${esc(f)}</div>`;
+  return `<div class="tile"><div class="k">${esc(lbl(key))}</div>${body}</div>`;
+}
+function rows(obj, mapKey){
+  const keys = Object.keys(obj).sort();
+  if (!keys.length) return `<tr><td class="k">keine Daten</td><td class="v"></td></tr>`;
+  return keys.map(k => {
+    const f = fmt(obj[k], unit(k));
+    return `<tr><td class="k">${esc(mapKey ? lbl(k) : k)}</td>
+      <td class="v">${f === null ? '–' : esc(f)}</td></tr>`;
+  }).join("");
+}
+function ago(ts){
+  if (!ts) return "noch nie";
+  const s = Math.max(0, Math.round(Date.now()/1000 - ts));
+  if (s < 60) return s + " s";
+  if (s < 3600) return Math.round(s/60) + " min";
+  return Math.round(s/3600) + " h";
+}
+
+async function loadMeta(){
+  try{
+    const r = await fetch("api/meta", {cache:"no-store"});
+    if (!r.ok) return;
+    META = await r.json();
+    if (META.poll_seconds) pollMs = Math.max(2000, META.poll_seconds * 1000);
+    document.getElementById("ver").textContent = "v" + (META.app_version || "?");
+    renderControlGate();
+  }catch(e){/* keep defaults */}
+}
+
+function renderControlGate(){
+  const banner = document.getElementById("control-banner");
+  const hint = document.getElementById("control-hint");
+  const ro = !META || META.read_only;
+  if (ro){
+    banner.className = "banner warn";
+    banner.innerHTML = "🔒 <div><b>Steuerung gesperrt (Phase 1: read-only).</b> "
+      + "Schreibzugriff wird in Phase 2 freigeschaltet, sobald der Live-Bus steht "
+      + "(GND-Fix, TUE-54) und Write-Tests verifiziert sind.</div>";
+    hint.textContent = "deaktiviert";
+  } else {
+    banner.className = "banner info";
+    banner.innerHTML = "Steuerung freigeschaltet.";
+    hint.textContent = "";
+    document.getElementById("controls").classList.remove("controls");
+  }
+}
+
+function setOffline(on, detail){
+  document.getElementById("offline").style.display = on ? "flex" : "none";
+  document.getElementById("offline-detail").textContent = detail || "";
+  const dot = document.getElementById("dot");
+  dot.className = "dot " + (on ? "off" : "on");
+}
+
+function renderBadges(st){
+  const b = [];
+  b.push(`<span class="badge ${st.connected ? 'live':''}">${st.connected ? '● verbunden':'○ getrennt'}</span>`);
+  if (st.mockup) b.push(`<span class="badge mock">MOCKUP (keine echte Hardware)</span>`);
+  if (st.read_only) b.push(`<span class="badge ro">read-only</span>`);
+  document.getElementById("badges").innerHTML = b.join("");
+}
+
+function render(st){
+  renderBadges(st);
+  const offline = !st.connected;
+  setOffline(offline, st.last_error ? "Fehler: " + st.last_error
+    : "Bridge offline – warte auf Live-Bus (TUE-54).");
+
+  const prim = [
+    tile("t_room", st.t_room, "°C"),
+    tile("t_supply", st.t_supply, "°C"),
+    tile("t_exhaust", st.t_exhaust, "°C"),
+    tile("mode", st.mode),
+    tile("fan_level", st.fan_level),
+    tile("setpoint", st.setpoint, "°C"),
+    tile("status", st.status),
+  ];
+  if (st.display) prim.push(tile("display", st.display));
+  document.getElementById("primary").innerHTML = prim.join("");
+
+  const sensors = st.sensors || {};
+  document.getElementById("sensors").innerHTML = rows(sensors, true);
+  document.getElementById("sensors-hint").textContent =
+    Object.keys(sensors).length + " Werte";
+
+  // config / settings
+  const cfg = {};
+  if (META){
+    cfg["Modus (mockup)"] = META.mockup ? "MOCKUP" : "Live-Gerät";
+    cfg["Schreibzugriff"] = META.read_only ? "gesperrt (read-only)" : "frei";
+    cfg["Abfrageintervall"] = (META.poll_seconds||"?") + " s";
+    if (META.esp_bridge) cfg["ESP-Bridge"] =
+      (META.esp_bridge.ip ? META.esp_bridge.ip : "—") + ":" + META.esp_bridge.port;
+    if (META.sensor_mapping) cfg["Sensor-Mapping"] =
+      Object.entries(META.sensor_mapping).map(([k,v])=>k+"="+v).join(", ");
+    cfg["MQTT-Topic"] = META.base_topic;
+  }
+  cfg["Aktueller Modus"] = st.mode ?? "–";
+  cfg["Aktuelle Solltemperatur"] = fmt(st.setpoint, "°C") ?? "–";
+  cfg["Aktuelle Lüfterstufe"] = st.fan_level ?? "–";
+  cfg["Geräte-Status"] = st.status ?? "–";
+  document.getElementById("config").innerHTML = Object.entries(cfg)
+    .map(([k,v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("");
+
+  // raw (everything the driver decoded)
+  document.getElementById("raw").innerHTML = rows(st.raw || {}, true);
+
+  // setpoint preview in (disabled) controls
+  const sp = document.getElementById("sp-val");
+  if (sp) sp.textContent = (st.setpoint ?? "–") + " °C";
+
+  document.getElementById("updated").textContent =
+    "Letzte Aktualisierung: " + (offline ? "—" : "vor " + ago(st.last_update_ts))
+    + " · Auto-Refresh alle " + Math.round(pollMs/1000) + " s";
+}
+
+async function poll(){
+  try{
+    const r = await fetch("api/status", {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    render(await r.json());
+  }catch(e){
+    setOffline(true, "Kein Kontakt zum Server (" + e.message + ").");
+    document.getElementById("badges").innerHTML =
+      `<span class="badge">○ Server nicht erreichbar</span>`;
+    document.getElementById("updated").textContent = "Verbindung verloren – neuer Versuch…";
+  }
+  timer = setTimeout(poll, pollMs);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && timer){ clearTimeout(timer); poll(); }
+});
+
+(async () => { await loadMeta(); poll(); })();
+</script>
+</body>
+</html>

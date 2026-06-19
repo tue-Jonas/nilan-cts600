@@ -1,11 +1,15 @@
-# Reverse proxy + basic auth for the Nilan REST API (local-first).
-# Exposed on :8643; proxies to the internal nilan-api:8642.
-# Replace the bcrypt hash below with your own:
-#   docker run --rm caddy:2 caddy hash-password --plaintext '<your-password>'
-# Default user: nilan
+# Reverse proxy + basic auth for the Nilan web UI + REST API (local-first).
+# Exposed on :8643; proxies to the internal nilan-api:8642 which serves the
+# read-only dashboard at "/" and the API under "/api/*" (TUE-55 Phase 1).
+#
+# Credentials (CHANGE THESE — household default set by Wattson, TUE-55):
+#   user: nilan   pass: nilan-luft-2026
+# Rotate with:
+#   docker run --rm caddy:2 caddy hash-password --plaintext '<new-password>'
+#   then replace the hash below and `docker compose restart caddy`.
 :8643 {
 	basic_auth {
-		nilan REPLACE_ME__run: caddy hash-password --plaintext <pw>
+		nilan $2a$14$6RuKmPnVlbN/MroImshdwughy.bvB32XQB5BwhZO8rs3agqquzY3m
 	}
 	reverse_proxy nilan-api:8642
 	encode gzip

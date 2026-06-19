@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Vendored frodef protocol library + our wrapper
 COPY vendor/nilan_cts600.py /app/nilan_cts600.py
 COPY app/nilan_api.py /app/nilan_api.py
+COPY app/dashboard.html /app/dashboard.html
 COPY app/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 

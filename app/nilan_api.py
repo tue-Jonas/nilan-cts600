@@ -36,7 +36,10 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -57,6 +60,11 @@ API_TOKEN = os.environ.get("NILAN_API_TOKEN", "").strip()  # optional bearer for
 READ_ONLY = os.environ.get("NILAN_READ_ONLY", "0").strip().lower() in ("1", "true", "yes", "on")
 HTTP_HOST = os.environ.get("NILAN_HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.environ.get("NILAN_HTTP_PORT", "8642"))
+ESP_IP = os.environ.get("ESP_IP", "").strip()       # live ESP bridge IP (real mode)
+ESP_PORT = os.environ.get("ESP_PORT", "6638").strip()
+
+APP_VERSION = "1.1"  # 1.1 adds read-only web dashboard (TUE-55 Phase 1)
+DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html")
 
 MQTT_HOST = os.environ.get("MQTT_HOST", "").strip()  # empty -> MQTT disabled
 MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
@@ -229,8 +237,13 @@ class NilanDevice:
             "status": d.get("status"),
             "display": d.get("display"),
             "sensors": {k: v for k, v in d.items() if isinstance(k, str) and k.startswith("T")},
+            # full decoded snapshot so the dashboard can show *every* value the
+            # frodef driver scraped (humidity/filter/hours/etc. appear here once
+            # the live unit is on the bus — keys are model/menu dependent).
+            "raw": {k: v for k, v in d.items()},
             "connected": self._connected,
             "mockup": MOCKUP,
+            "read_only": READ_ONLY,
             "last_update_ts": self._last_update_ts,
             "last_error": self._last_error,
         }
@@ -368,9 +381,69 @@ def healthz():
     return {"ok": True, "connected": device._connected, "mockup": MOCKUP, "read_only": READ_ONLY}
 
 
+@app.get("/api/meta")
+def get_meta(_: None = Depends(auth)):
+    """Self-describing config + UI metadata. The dashboard reads this once to
+    render labels/units, the current device configuration, and to know whether
+    control (Phase 2) is unlocked (read_only=false + a live bus)."""
+    return {
+        "app_version": APP_VERSION,
+        "mockup": MOCKUP,
+        "read_only": READ_ONLY,
+        "poll_seconds": POLL_SECONDS,
+        "base_topic": MQTT_BASE,
+        "esp_bridge": {"ip": ESP_IP or None, "port": ESP_PORT},
+        "sensor_mapping": {
+            "t_room": T_ROOM_KEY,
+            "t_supply": T_SUPPLY_KEY,
+            "t_exhaust": T_EXHAUST_KEY,
+        },
+        # Control envelope (Phase 2). Surfaced now so the UI can validate input
+        # the moment writes are unlocked.
+        "controls": {
+            "fan": {"min": 0, "max": 4, "off_level": 0},
+            "mode": ["auto", "heat", "cool", "off"],
+            "setpoint": {"min": 5, "max": 30, "unit": "°C"},
+        },
+        # Friendly German labels for the curated fields + common raw keys.
+        # Unknown raw keys fall back to the key name in the UI.
+        "labels": {
+            "t_room": "Raumtemperatur",
+            "t_supply": "Zulufttemperatur",
+            "t_exhaust": "Ablufttemperatur",
+            "fan_level": "Lüfterstufe",
+            "mode": "Betriebsmodus",
+            "setpoint": "Solltemperatur",
+            "status": "Status",
+            "display": "Display-Text",
+            "T15": "Raum (T15)", "T1": "Zuluft (T1)", "T2": "T2",
+            "T5": "Abluft (T5)", "T6": "Außen (T6)", "T7": "T7",
+            "flow": "Lüfterstufe", "thermostat": "Solltemperatur",
+            "humidity": "Luftfeuchte", "RH": "Luftfeuchte",
+            "filter": "Filter", "led": "LED",
+        },
+        "units": {
+            "t_room": "°C", "t_supply": "°C", "t_exhaust": "°C",
+            "setpoint": "°C", "thermostat": "°C",
+            "T15": "°C", "T1": "°C", "T2": "°C", "T5": "°C", "T6": "°C", "T7": "°C",
+            "humidity": "%", "RH": "%",
+        },
+    }
+
+
 @app.get("/api/status")
 def get_status(_: None = Depends(auth)):
     return device.status()
+
+
+@app.get("/", response_class=HTMLResponse)
+def dashboard():
+    """Read-only web dashboard (TUE-55 Phase 1). Served same-origin so it lives
+    behind the same Caddy auth as the API."""
+    try:
+        return HTMLResponse(DASHBOARD_HTML.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return PlainTextResponse("dashboard.html missing from image", status_code=500)
 
 
 def _device_write(fn, *args):
