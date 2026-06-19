@@ -96,11 +96,14 @@ What it shows (Phase 1):
   flag, poll interval, ESP-bridge target, sensor mapping, MQTT base topic, current
   mode/setpoint/fan/status.
 - Clear **"Keine Live-Daten / Bridge offline"** banner when the bus is down.
-- **Steuerung** (controls) are rendered but **locked** while `NILAN_READ_ONLY=1`
-  (Phase 2 unlocks them once the live bus from TUE-54 is verified).
+- **Steuerung** (Phase 2, live): fan stage, mode, and setpoint buttons POST to the
+  API and drive the unit; current state is highlighted; guard-rails (`confirm`) on
+  mode changes and **Off**. Active when `NILAN_READ_ONLY=0`; auto-locks back to
+  read-only display if `NILAN_READ_ONLY=1`.
 
-Endpoints added: `GET /` (dashboard), `GET /api/meta` (self-describing
-labels/units/config), and `raw` + `read_only` fields on `GET /api/status`.
+Endpoints: `GET /` (dashboard), `GET /api/meta` (self-describing
+labels/units/config + control envelope), `GET /api/status` (`raw` + `read_only`),
+and the writes `POST /api/fan|mode|temp` (gated by `NILAN_READ_ONLY`).
 
 ### Update / operate the dashboard
 
@@ -135,8 +138,10 @@ Because `/api/*` is same-origin, once **Phase 2** flips `NILAN_READ_ONLY=0` the
 exposure then (keep control tailnet-only via `tailscale serve`, or add a second
 factor) before unlocking writes on the public Funnel.
 
-> **Phase 2 (control)** stays disabled until `TUE-54` (GND fix → live bus) is done
-> and write-tests pass; then set `NILAN_READ_ONLY=0` and the UI controls activate.
+> **Phase 2 (control) is live** (`NILAN_READ_ONLY=0`). Write path verified by
+> controlled self-restoring tests (fan 3→2→3, setpoint 18→19→18, mode cool→auto→cool,
+> each read back, final == baseline). To take the unit read-only again, set
+> `NILAN_READ_ONLY=1` and `docker compose up -d nilan-api`.
 
 ## Contract (plan §8)
 
