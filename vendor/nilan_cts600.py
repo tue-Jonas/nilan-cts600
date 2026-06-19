@@ -617,7 +617,12 @@ class CTS600:
         currentFlow = parseFlow(self.resetMenu())
         self.key_enter() # thermostat
         self.key_enter() # heat/cool mode
-        if f'>{currentFlow}<' != getBlinkText (self.key_enter()):
+        # Confirm we reached the flow-input field. frodef expects the blink text
+        # to be exactly '>{flow}<', but some panels (TUE-55: this DE CTS600)
+        # blink only the digit -> '>{3}<' yields blink text '3'. Accept as long
+        # as the current flow digit is the blinking value.
+        blink = getBlinkText (self.key_enter())
+        if str(currentFlow) not in blink:
             x = self.key()
             raise Exception ('Failed to flow input mode.', x, getBlinkText (x))
         if flow > currentFlow:

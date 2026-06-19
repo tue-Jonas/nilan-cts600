@@ -51,10 +51,18 @@
   td.k{color:var(--muted);width:55%}
   td.v{text-align:right;font-variant-numeric:tabular-nums}
   details summary{cursor:pointer;color:var(--accent);font-size:.85rem;padding:.3rem 0}
-  .controls{opacity:.55;pointer-events:none}
-  .btnrow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0}
+  .controls.locked{opacity:.55;pointer-events:none}
+  .btnrow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0;align-items:center}
+  .ctl-lbl{align-self:center;color:var(--muted);font-size:.8rem;min-width:5.5rem}
   .btn{background:var(--card2);border:1px solid var(--line);color:var(--fg);
-    padding:.55rem .9rem;border-radius:10px;font-size:.9rem}
+    padding:.6rem 1rem;border-radius:10px;font-size:.95rem;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .btn:active{transform:scale(.95)}
+  .btn:disabled{cursor:default;opacity:.8}
+  .btn.active{background:var(--accent);border-color:var(--accent);color:#08151f;font-weight:650}
+  .btn.busy{opacity:.5;pointer-events:none}
+  .ctl-toast{font-size:.82rem;color:var(--muted);min-height:1.1rem;margin-top:.3rem}
+  .ctl-toast.ok{color:var(--ok)} .ctl-toast.err{color:var(--bad)}
   footer{color:var(--muted);font-size:.72rem;text-align:center;margin:1.6rem 1rem 0;line-height:1.5}
   .pulse{animation:pulse 1.2s ease-in-out infinite}
   @keyframes pulse{50%{opacity:.45}}
@@ -87,15 +95,18 @@
   <section>
     <h2>Steuerung <span class="hint" id="control-hint"></span></h2>
     <div id="control-banner" class="banner info"></div>
-    <div class="controls" id="controls">
-      <div class="btnrow"><b style="align-self:center;color:var(--muted);font-size:.8rem">Lüfterstufe:</b>
-        <span class="btn">0</span><span class="btn">1</span><span class="btn">2</span>
-        <span class="btn">3</span><span class="btn">4</span></div>
-      <div class="btnrow"><b style="align-self:center;color:var(--muted);font-size:.8rem">Modus:</b>
-        <span class="btn">Auto</span><span class="btn">Heizen</span>
-        <span class="btn">Kühlen</span><span class="btn">Aus</span></div>
-      <div class="btnrow"><b style="align-self:center;color:var(--muted);font-size:.8rem">Solltemp:</b>
-        <span class="btn">−</span><span class="btn" id="sp-val">– °C</span><span class="btn">+</span></div>
+    <div class="controls locked" id="controls">
+      <div class="btnrow"><b class="ctl-lbl">Lüfterstufe:</b>
+        <button class="btn" data-fan="0">0</button><button class="btn" data-fan="1">1</button>
+        <button class="btn" data-fan="2">2</button><button class="btn" data-fan="3">3</button>
+        <button class="btn" data-fan="4">4</button></div>
+      <div class="btnrow"><b class="ctl-lbl">Modus:</b>
+        <button class="btn" data-mode="auto">Auto</button><button class="btn" data-mode="heat">Heizen</button>
+        <button class="btn" data-mode="cool">Kühlen</button><button class="btn" data-mode="off">Aus</button></div>
+      <div class="btnrow"><b class="ctl-lbl">Solltemp:</b>
+        <button class="btn" data-sp="-1">−</button><button class="btn" id="sp-val" disabled>– °C</button>
+        <button class="btn" data-sp="1">+</button></div>
+      <div id="ctl-toast" class="ctl-toast"></div>
     </div>
   </section>
 
@@ -108,13 +119,13 @@
 
   <footer>
     <span id="updated">–</span><br>
-    Nilan CTS600 · <span id="ver"></span> · read-only Dashboard (Phase 1, TUE-55)
+    Nilan CTS600 · <span id="ver"></span> · Web-Bedienoberfläche (TUE-55)
   </footer>
 </main>
 
 <script>
 const POLL_FALLBACK = 5000;
-let META = null, pollMs = POLL_FALLBACK, timer = null;
+let META = null, pollMs = POLL_FALLBACK, timer = null, LAST_STATUS = null;
 
 const lbl = (k) => (META && META.labels && META.labels[k]) || k;
 const unit = (k) => (META && META.units && META.units[k]) || "";
@@ -164,18 +175,76 @@ function renderControlGate(){
   const banner = document.getElementById("control-banner");
   const hint = document.getElementById("control-hint");
   const ro = !META || META.read_only;
+  const controls = document.getElementById("controls");
   if (ro){
     banner.className = "banner warn";
     banner.innerHTML = "🔒 <div><b>Steuerung gesperrt (read-only).</b> "
       + "Der Live-Bus läuft und liefert echte Daten — Schreibzugriff (Lüfter/Modus/Soll) "
       + "wird nach kontrollierten Write-Tests freigeschaltet (Phase 2).</div>";
     hint.textContent = "deaktiviert";
+    controls.classList.add("locked");
   } else {
     banner.className = "banner info";
-    banner.innerHTML = "Steuerung freigeschaltet.";
-    hint.textContent = "";
-    document.getElementById("controls").classList.remove("controls");
+    banner.innerHTML = "✅ <div>Steuerung aktiv. Tippe einen Wert — die Anlage schaltet sofort. "
+      + "Sicherheitsrelevante Aktionen (Aus, Moduswechsel) fragen nochmal nach.</div>";
+    hint.textContent = "aktiv";
+    controls.classList.remove("locked");
+    wireControls();
   }
+}
+
+let controlsWired = false;
+function wireControls(){
+  if (controlsWired) return;
+  controlsWired = true;
+  document.querySelectorAll("#controls button[data-fan]").forEach(b =>
+    b.addEventListener("click", () => {
+      const lvl = parseInt(b.dataset.fan, 10);
+      const danger = lvl === 0;
+      if (danger && !confirm("Lüftung wirklich AUSschalten (Stufe 0)?")) return;
+      sendCmd("api/fan", {level: lvl}, b, `Lüfterstufe ${lvl}`);
+    }));
+  document.querySelectorAll("#controls button[data-mode]").forEach(b =>
+    b.addEventListener("click", () => {
+      const m = b.dataset.mode;
+      const names = {auto:"Auto", heat:"Heizen", cool:"Kühlen", off:"Aus"};
+      if (!confirm(`Betriebsmodus auf "${names[m]}" umschalten?`)) return;
+      sendCmd("api/mode", {mode: m}, b, `Modus ${names[m]}`);
+    }));
+  document.querySelectorAll("#controls button[data-sp]").forEach(b =>
+    b.addEventListener("click", () => {
+      const delta = parseInt(b.dataset.sp, 10);
+      const cur = (LAST_STATUS && Number.isFinite(LAST_STATUS.setpoint)) ? LAST_STATUS.setpoint : null;
+      if (cur === null){ toast("Kein aktueller Sollwert bekannt.", "err"); return; }
+      const lo = META?.controls?.setpoint?.min ?? 5, hi = META?.controls?.setpoint?.max ?? 30;
+      const next = Math.min(hi, Math.max(lo, cur + delta));
+      if (next === cur){ toast(`Grenze erreicht (${lo}–${hi} °C).`); return; }
+      sendCmd("api/temp", {setpoint: next}, b, `Solltemperatur ${next} °C`);
+    }));
+}
+
+async function sendCmd(path, body, btn, label){
+  const toastEl = document.getElementById("ctl-toast");
+  toastEl.className = "ctl-toast"; toastEl.textContent = "Sende: " + label + " …";
+  btn.classList.add("busy");
+  try{
+    const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body), cache:"no-store"});
+    const data = await r.json().catch(()=> ({}));
+    if (!r.ok) throw new Error(data.detail || data.error || ("HTTP " + r.status));
+    toast("✓ " + label + " gesetzt.", "ok");
+    render(data);            // API returns fresh status — reflect immediately
+  }catch(e){
+    toast("✗ " + label + " fehlgeschlagen: " + e.message, "err");
+  }finally{
+    btn.classList.remove("busy");
+    clearTimeout(timer); poll();   // force a fresh poll cycle
+  }
+}
+function toast(msg, kind){
+  const t = document.getElementById("ctl-toast");
+  t.className = "ctl-toast" + (kind ? " " + kind : "");
+  t.textContent = msg;
 }
 
 function setOffline(on, detail){
@@ -194,10 +263,11 @@ function renderBadges(st){
 }
 
 function render(st){
+  LAST_STATUS = st;
   renderBadges(st);
   const offline = !st.connected;
   setOffline(offline, st.last_error ? "Fehler: " + st.last_error
-    : "Bridge offline – warte auf Live-Bus (TUE-54).");
+    : "Bridge offline – keine Verbindung zur Lüftung.");
 
   const prim = [
     tile("t_room", st.t_room, "°C"),
@@ -238,9 +308,13 @@ function render(st){
   // raw (everything the driver decoded)
   document.getElementById("raw").innerHTML = rows(st.raw || {}, true);
 
-  // setpoint preview in (disabled) controls
+  // reflect current state in the controls
   const sp = document.getElementById("sp-val");
   if (sp) sp.textContent = (st.setpoint ?? "–") + " °C";
+  document.querySelectorAll("#controls button[data-fan]").forEach(b =>
+    b.classList.toggle("active", parseInt(b.dataset.fan,10) === st.fan_level));
+  document.querySelectorAll("#controls button[data-mode]").forEach(b =>
+    b.classList.toggle("active", b.dataset.mode === st.mode));
 
   document.getElementById("updated").textContent =
     "Letzte Aktualisierung: " + (offline ? "—" : "vor " + ago(st.last_update_ts))

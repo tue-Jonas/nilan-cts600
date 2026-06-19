@@ -85,6 +85,25 @@ T_EXHAUST_KEY = os.environ.get("NILAN_T_EXHAUST_KEY", "T5")
 MODE_TO_FRODEF = {"auto": "AUTO", "heat": "HEAT", "cool": "COOL"}
 
 
+def _canon_mode(raw) -> Optional[str]:
+    """Normalise the frodef mode token to canonical auto|heat|cool|off.
+
+    The token is language-dependent (DE unit reports KÜHLEN/HEIZEN/AUTO, and the
+    CTS600 charset mangles umlauts e.g. 'KÚHLEN'), so match on ascii substrings."""
+    if not raw:
+        return None
+    t = str(raw).upper()
+    if "AUTO" in t:
+        return "auto"
+    if "HEIZ" in t or "HEAT" in t:
+        return "heat"
+    if "K" in t and "HL" in t or "COOL" in t:  # KÜHLEN/KÚHLEN/COOL
+        return "cool"
+    if "AUS" in t or "OFF" in t:
+        return "off"
+    return str(raw).lower()
+
+
 # ---- device manager ---------------------------------------------------------
 class NilanDevice:
     """Owns the single CTS600 connection, a poll thread, and a device lock.
@@ -229,13 +248,12 @@ class NilanDevice:
     # -- contract projection (plan section 8) --
     def status(self) -> dict[str, Any]:
         d = self._snapshot
-        raw_mode = str(d.get("mode", "")).lower() or None
         status_txt = str(d.get("status", "")).upper()
         # 'off' is inferred when the unit reports an OFF/standby status
-        if status_txt in ("OFF", "STANDBY", "STOP"):
+        if status_txt in ("OFF", "STANDBY", "STOP", "AUS"):
             mode = "off"
         else:
-            mode = raw_mode
+            mode = _canon_mode(d.get("mode"))
 
         def num(key):
             v = d.get(key)
