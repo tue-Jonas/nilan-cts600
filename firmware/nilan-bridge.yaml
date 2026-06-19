@@ -1,0 +1,63 @@
+# ESPHome: Nilan CTS600 — transparent RAW Serial<->TCP Tunnel
+# Board: Waveshare ESP32-S3-RS485-CAN (RS-485 transceiver onboard + isolated)
+# Role: WLAN<->RS-485 bytes 1:1. No Modbus interpretation on the ESP.
+# Panel emulation runs server-side via frodef/nilan-daemon.
+substitutions:
+  tcp_port: "6638"
+esphome:
+  name: nilan-bridge
+  friendly_name: Nilan CTS600 Bridge
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+api:
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+    password: !secret ota_password
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Static IP is recommended because tj-lt socat connects to this endpoint.
+  # manual_ip:
+  #   static_ip: 192.168.1.50
+  #   gateway: 192.168.1.1
+  #   subnet: 255.255.255.0
+  ap:
+    ssid: "Nilan-Bridge Setup"
+    password: !secret ap_password
+captive_portal:
+web_server:
+  port: 80
+external_components:
+  - source: github://oxan/esphome-stream-server
+uart:
+  id: nilan_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  flow_control_pin: GPIO21
+  baud_rate: 19200
+  data_bits: 8
+  # CTS600 framing is 8N2 (NO parity, 2 stop bits) — matches the proven frodef
+  # reference driver (ModbusSerialClient parity='N', stopbits=2). The earlier
+  # 8E1 guess from the research note was WRONG: with parity:EVEN the ESP-IDF/
+  # Arduino UART mangles the slave's reply (verified on-site 2026-06-19: the bus
+  # answers with a 31-byte frame but every Modbus CRC fails). 8N2 = correct.
+  parity: NONE
+  stop_bits: 2
+  rx_buffer_size: 512
+stream_server:
+  uart_id: nilan_uart
+  port: ${tcp_port}
+  buffer_size: 1024
+binary_sensor:
+  - platform: status
+    name: "Nilan Bridge Status"
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "Nilan Bridge IP"

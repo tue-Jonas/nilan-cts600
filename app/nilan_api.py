@@ -54,6 +54,7 @@ RETRIES = int(os.environ.get("NILAN_RETRIES", "3"))
 POLL_SECONDS = float(os.environ.get("NILAN_POLL_SECONDS", "30"))
 T15_FALLBACK = float(os.environ.get("NILAN_T15_FALLBACK", "21"))
 API_TOKEN = os.environ.get("NILAN_API_TOKEN", "").strip()  # optional bearer for direct access
+READ_ONLY = os.environ.get("NILAN_READ_ONLY", "0").strip().lower() in ("1", "true", "yes", "on")
 HTTP_HOST = os.environ.get("NILAN_HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.environ.get("NILAN_HTTP_PORT", "8642"))
 
@@ -273,6 +274,9 @@ class MqttLayer:
         payload = msg.payload.decode("utf-8", "ignore").strip()
         topic = msg.topic
         log.info("MQTT msg %s = %s", topic, payload)
+        if READ_ONLY:
+            log.warning("Ignoring MQTT command in read-only mode: %s", topic)
+            return
         try:
             if topic.endswith("/fan/set"):
                 self.dev.set_fan(_coerce_level(payload))
@@ -361,7 +365,7 @@ class TempBody(BaseModel):
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "connected": device._connected, "mockup": MOCKUP}
+    return {"ok": True, "connected": device._connected, "mockup": MOCKUP, "read_only": READ_ONLY}
 
 
 @app.get("/api/status")
@@ -371,6 +375,8 @@ def get_status(_: None = Depends(auth)):
 
 def _device_write(fn, *args):
     """Run a device write, turning device/protocol failures into a clean 502."""
+    if READ_ONLY:
+        raise HTTPException(status_code=403, detail="device is in read-only bring-up mode")
     try:
         fn(*args)
     except HTTPException:
