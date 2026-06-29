@@ -38,6 +38,15 @@ the socat/broker/proxy layers here are reused as-is.
 | `env/nilan.env(.example)` | config + secrets (`.env` gitignored) |
 | `systemd/socat-nilan.service` | OPTIONAL host-side socat (only for a host consumer; container has its own) |
 
+## Operator Documentation
+
+- [`docs/architecture-setup-debugging.md`](docs/architecture-setup-debugging.md)
+  is the canonical restart point for architecture, host split, live addresses,
+  setup commands, safety gates, API/MQTT surfaces, physical bring-up, rollback,
+  debugging, and activity-log ownership.
+- [`docs/nilan-install-handoff.md`](docs/nilan-install-handoff.md) is the
+  on-site wiring and agent handoff guide for first physical bring-up.
+
 ## Bring-up NOW (no hardware — mockup)
 
 ```bash
@@ -100,10 +109,15 @@ What it shows (Phase 1):
   API and drive the unit; current state is highlighted; guard-rails (`confirm`) on
   mode changes and **Off**. Active when `NILAN_READ_ONLY=0`; auto-locks back to
   read-only display if `NILAN_READ_ONLY=1`.
+- **Aktivitätslog**: openable log panel backed by `/api/activity`, with timestamp,
+  actor/source, action type, target, result, and safety state. REST write attempts
+  blocked by `NILAN_READ_ONLY=1` and MQTT commands ignored in read-only mode are
+  recorded as `blocked`; status polling is summarized and hidden by default.
 
 Endpoints: `GET /` (dashboard), `GET /api/meta` (self-describing
 labels/units/config + control envelope), `GET /api/status` (`raw` + `read_only`),
-and the writes `POST /api/fan|mode|temp` (gated by `NILAN_READ_ONLY`).
+`GET /api/activity` (bounded in-memory activity log), and the writes
+`POST /api/fan|mode|temp` (gated by `NILAN_READ_ONLY`).
 
 ### Update / operate the dashboard
 
@@ -148,6 +162,7 @@ factor) before unlocking writes on the public Funnel.
 | Method | Endpoint / topic | Body / payload |
 |---|---|---|
 | GET | `/api/status` | `{t_room,t_supply,t_exhaust,fan_level,mode,setpoint,...}` |
+| GET | `/api/activity?include_reads=false&limit=100` | Bounded activity log; set `include_reads=true` to include summarized polling |
 | POST | `/api/fan` | `{"level":0-4}` (0=off) |
 | POST | `/api/mode` | `{"mode":"auto\|heat\|cool\|off"}` |
 | POST | `/api/temp` | `{"setpoint":5-30}` |

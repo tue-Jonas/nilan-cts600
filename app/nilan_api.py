@@ -33,12 +33,14 @@ import os
 import threading
 import time
 import logging
+from collections import deque
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 import uvicorn
@@ -58,6 +60,9 @@ POLL_SECONDS = float(os.environ.get("NILAN_POLL_SECONDS", "30"))
 T15_FALLBACK = float(os.environ.get("NILAN_T15_FALLBACK", "21"))
 API_TOKEN = os.environ.get("NILAN_API_TOKEN", "").strip()  # optional bearer for direct access
 READ_ONLY = os.environ.get("NILAN_READ_ONLY", "0").strip().lower() in ("1", "true", "yes", "on")
+ACTIVITY_LOG_MAX = int(os.environ.get("NILAN_ACTIVITY_LOG_MAX", "300"))
+ACTIVITY_READ_SUMMARY_SECONDS = float(os.environ.get("NILAN_ACTIVITY_READ_SUMMARY_SECONDS", "60"))
+ACTIVITY_READ_SUMMARY_COUNT = int(os.environ.get("NILAN_ACTIVITY_READ_SUMMARY_COUNT", "10"))
 HTTP_HOST = os.environ.get("NILAN_HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.environ.get("NILAN_HTTP_PORT", "8642"))
 ESP_IP = os.environ.get("ESP_IP", "").strip()       # live ESP bridge IP (real mode)
@@ -66,7 +71,7 @@ ESP_PORT = os.environ.get("ESP_PORT", "6638").strip()
 # match (temperatures). Empty string disables. Default ENGLISH.
 SET_LANGUAGE = os.environ.get("NILAN_SET_LANGUAGE", "ENGLISH").strip()
 
-APP_VERSION = "1.1"  # 1.1 adds read-only web dashboard (TUE-55 Phase 1)
+APP_VERSION = "1.2"  # 1.2 adds activity log (TUE-78)
 DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html")
 
 MQTT_HOST = os.environ.get("MQTT_HOST", "").strip()  # empty -> MQTT disabled
@@ -83,6 +88,130 @@ T_SUPPLY_KEY = os.environ.get("NILAN_T_SUPPLY_KEY", "T1")
 T_EXHAUST_KEY = os.environ.get("NILAN_T_EXHAUST_KEY", "T5")
 
 MODE_TO_FRODEF = {"auto": "AUTO", "heat": "HEAT", "cool": "COOL"}
+
+
+class ActivityLog:
+    """Small in-memory activity log retained by the backend process.
+
+    This intentionally avoids writing audit data to disk on the home automation
+    host. Read/status polls are summarized so the log remains useful while the
+    dashboard auto-refreshes.
+    """
+
+    def __init__(self, maxlen: int) -> None:
+        self.maxlen = max(50, maxlen)
+        self._events = deque(maxlen=self.maxlen)
+        self._lock = threading.Lock()
+        self._next_id = 1
+        self._read_summary: dict[str, dict[str, Any]] = {}
+
+    def _now(self) -> tuple[float, str]:
+        ts = time.time()
+        return ts, datetime.fromtimestamp(ts, timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def record(
+        self,
+        *,
+        source: str,
+        action_type: str,
+        target: str,
+        result: str,
+        detail: Optional[str] = None,
+        value: Optional[Any] = None,
+        count: Optional[int] = None,
+    ) -> dict[str, Any]:
+        ts, iso = self._now()
+        event: dict[str, Any] = {
+            "ts": ts,
+            "timestamp": iso,
+            "actor": source,
+            "source": source,
+            "action_type": action_type,
+            "target": target,
+            "result": result,
+            "safety_state": "read_only" if READ_ONLY else "write_enabled",
+        }
+        if detail:
+            event["detail"] = str(detail)[:240]
+        if value is not None:
+            event["value"] = value
+        if count is not None:
+            event["count"] = count
+        with self._lock:
+            event["id"] = self._next_id
+            self._next_id += 1
+            self._events.appendleft(event)
+        return event
+
+    def record_status_poll(self, source: str, result: str, detail: Optional[str] = None) -> None:
+        now = time.time()
+        key = f"{source}:{result}"
+        with self._lock:
+            summary = self._read_summary.setdefault(
+                key,
+                {"source": source, "result": result, "count": 0, "first_ts": now, "last_ts": now, "detail": None},
+            )
+            summary["count"] += 1
+            summary["last_ts"] = now
+            summary["detail"] = detail
+            should_flush = (
+                summary["count"] >= ACTIVITY_READ_SUMMARY_COUNT
+                or now - summary["first_ts"] >= ACTIVITY_READ_SUMMARY_SECONDS
+            )
+        if should_flush:
+            self.flush_status_summaries()
+
+    def flush_status_summaries(self) -> None:
+        with self._lock:
+            summaries = list(self._read_summary.values())
+            self._read_summary.clear()
+        for summary in summaries:
+            self.record(
+                source=summary["source"],
+                action_type="status_poll",
+                target="/api/status",
+                result=summary["result"],
+                detail=summary.get("detail"),
+                count=summary["count"],
+            )
+
+    def list_events(self, *, limit: int = 100, include_reads: bool = False) -> dict[str, Any]:
+        self.flush_status_summaries()
+        limit = max(1, min(limit, self.maxlen))
+        with self._lock:
+            events = list(self._events)
+        if not include_reads:
+            events = [e for e in events if e.get("action_type") != "status_poll"]
+        return {
+            "events": events[:limit],
+            "limit": limit,
+            "retention_max_events": self.maxlen,
+            "include_reads": include_reads,
+            "read_summary": {
+                "window_seconds": ACTIVITY_READ_SUMMARY_SECONDS,
+                "flush_count": ACTIVITY_READ_SUMMARY_COUNT,
+            },
+        }
+
+
+activity_log = ActivityLog(ACTIVITY_LOG_MAX)
+
+
+def _safe_activity_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        safe = {}
+        for key, item in value.items():
+            if any(token in str(key).lower() for token in ("pass", "password", "token", "secret", "key")):
+                safe[key] = "[redacted]"
+            else:
+                safe[key] = _safe_activity_value(item)
+        return safe
+    if isinstance(value, (list, tuple)):
+        return [_safe_activity_value(item) for item in value[:10]]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        text = str(value) if isinstance(value, str) else value
+        return text[:120] if isinstance(text, str) else text
+    return str(value)[:120]
 
 
 def _canon_mode(raw) -> Optional[str]:
@@ -144,10 +273,13 @@ class NilanDevice:
                     log.info("setLanguage(%s) -> %s", SET_LANGUAGE, ok)
                 except Exception as e:  # noqa: BLE001
                     log.warning("setLanguage(%s) failed (non-fatal): %s", SET_LANGUAGE, e)
-            try:
-                self._cts.setT15(T15_FALLBACK)
-            except Exception as e:  # noqa: BLE001
-                log.warning("setT15 fallback failed (non-fatal): %s", e)
+            if READ_ONLY:
+                log.info("Skipping setT15 fallback because NILAN_READ_ONLY is enabled")
+            else:
+                try:
+                    self._cts.setT15(T15_FALLBACK)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("setT15 fallback failed (non-fatal): %s", e)
             self._connected = True
             self._last_error = None
 
@@ -173,8 +305,20 @@ class NilanDevice:
         while not self._stop.is_set():
             try:
                 self.refresh()
+                activity_log.record_status_poll("device-poller", "ok")
+            except OSError as e:
+                self._connected = False
+                self._last_error = str(e)
+                activity_log.record_status_poll("device-poller", "error", str(e))
+                log.warning("Poll I/O error (%s) -> reconnecting before next poll", e)
+                try:
+                    self.connect()
+                except Exception as ce:  # noqa: BLE001
+                    self._last_error = str(ce)
+                    log.warning("Reconnect after poll I/O error failed: %s", ce)
             except Exception as e:  # noqa: BLE001
                 self._last_error = str(e)
+                activity_log.record_status_poll("device-poller", "error", str(e))
                 log.warning("Poll failed: %s", e)
             self._stop.wait(POLL_SECONDS)
 
@@ -340,17 +484,46 @@ class MqttLayer:
         payload = msg.payload.decode("utf-8", "ignore").strip()
         topic = msg.topic
         log.info("MQTT msg %s = %s", topic, payload)
+        target = topic.replace(f"{MQTT_BASE}/", "", 1) if topic.startswith(f"{MQTT_BASE}/") else topic
         if READ_ONLY:
+            activity_log.record(
+                source="mqtt",
+                action_type="command",
+                target=target,
+                result="blocked",
+                detail="ignored because NILAN_READ_ONLY is enabled",
+                value=_safe_activity_value(payload),
+            )
             log.warning("Ignoring MQTT command in read-only mode: %s", topic)
             return
         try:
             if topic.endswith("/fan/set"):
-                self.dev.set_fan(_coerce_level(payload))
+                value = _coerce_level(payload)
+                self.dev.set_fan(value)
             elif topic.endswith("/mode/set"):
-                self.dev.set_mode(_coerce_mode(payload))
+                value = _coerce_mode(payload)
+                self.dev.set_mode(value)
             elif topic.endswith("/temp/set"):
-                self.dev.set_temp(_coerce_setpoint(payload))
+                value = _coerce_setpoint(payload)
+                self.dev.set_temp(value)
+            else:
+                value = payload
+            activity_log.record(
+                source="mqtt",
+                action_type="command",
+                target=target,
+                result="ok",
+                value=_safe_activity_value(value),
+            )
         except Exception as e:  # noqa: BLE001
+            activity_log.record(
+                source="mqtt",
+                action_type="command",
+                target=target,
+                result="error",
+                detail=str(e),
+                value=_safe_activity_value(payload),
+            )
             log.warning("MQTT command failed on %s: %s", topic, e)
 
     def publish_state(self, state: dict) -> None:
@@ -445,6 +618,11 @@ def get_meta(_: None = Depends(auth)):
         "read_only": READ_ONLY,
         "poll_seconds": POLL_SECONDS,
         "base_topic": MQTT_BASE,
+        "activity_log": {
+            "retention_max_events": activity_log.maxlen,
+            "read_summary_seconds": ACTIVITY_READ_SUMMARY_SECONDS,
+            "read_summary_count": ACTIVITY_READ_SUMMARY_COUNT,
+        },
         "esp_bridge": {"ip": ESP_IP or None, "port": ESP_PORT},
         "sensor_mapping": {
             "t_room": T_ROOM_KEY,
@@ -514,7 +692,17 @@ def get_meta(_: None = Depends(auth)):
 
 @app.get("/api/status")
 def get_status(_: None = Depends(auth)):
+    activity_log.record_status_poll("rest-api", "ok")
     return device.status()
+
+
+@app.get("/api/activity")
+def get_activity(
+    _: None = Depends(auth),
+    limit: int = Query(default=100, ge=1, le=500),
+    include_reads: bool = Query(default=False),
+):
+    return activity_log.list_events(limit=limit, include_reads=include_reads)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -522,41 +710,72 @@ def dashboard():
     """Read-only web dashboard (TUE-55 Phase 1). Served same-origin so it lives
     behind the same Caddy auth as the API."""
     try:
-        return HTMLResponse(DASHBOARD_HTML.read_text(encoding="utf-8"))
+        return HTMLResponse(DASHBOARD_HTML.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
     except FileNotFoundError:
         return PlainTextResponse("dashboard.html missing from image", status_code=500)
 
 
-def _device_write(fn, *args):
+def _device_write(action_type: str, target: str, value: Any, fn, *args):
     """Run a device write, turning device/protocol failures into a clean 502."""
     if READ_ONLY:
+        activity_log.record(
+            source="rest-api",
+            action_type=action_type,
+            target=target,
+            result="blocked",
+            detail="rejected because NILAN_READ_ONLY is enabled",
+            value=_safe_activity_value(value),
+        )
         raise HTTPException(status_code=403, detail="device is in read-only bring-up mode")
     try:
         fn(*args)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
+        activity_log.record(
+            source="rest-api",
+            action_type=action_type,
+            target=target,
+            result="error",
+            detail=str(e),
+            value=_safe_activity_value(value),
+        )
         log.warning("device write failed: %s", e)
         raise HTTPException(status_code=502, detail=f"device command failed: {e}")
+    activity_log.record(
+        source="rest-api",
+        action_type=action_type,
+        target=target,
+        result="ok",
+        value=_safe_activity_value(value),
+    )
     return device.status()
 
 
 @app.post("/api/fan")
 def post_fan(body: FanBody, _: None = Depends(auth)):
-    return _device_write(device.set_fan, body.level)
+    return _device_write("set_fan", "/api/fan", {"level": body.level}, device.set_fan, body.level)
 
 
 @app.post("/api/mode")
 def post_mode(body: ModeBody, _: None = Depends(auth)):
     m = body.mode.strip().lower()
     if m not in ("auto", "heat", "cool", "off"):
+        activity_log.record(
+            source="rest-api",
+            action_type="set_mode",
+            target="/api/mode",
+            result="error",
+            detail="mode must be auto|heat|cool|off",
+            value=_safe_activity_value({"mode": body.mode}),
+        )
         raise HTTPException(status_code=422, detail="mode must be auto|heat|cool|off")
-    return _device_write(device.set_mode, m)
+    return _device_write("set_mode", "/api/mode", {"mode": m}, device.set_mode, m)
 
 
 @app.post("/api/temp")
 def post_temp(body: TempBody, _: None = Depends(auth)):
-    return _device_write(device.set_temp, body.setpoint)
+    return _device_write("set_temp", "/api/temp", {"setpoint": body.setpoint}, device.set_temp, body.setpoint)
 
 
 if __name__ == "__main__":

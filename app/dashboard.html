@@ -71,6 +71,32 @@
   }
   .connection.is-live{color:var(--green);border-color:#9ed6bd;background:var(--green-soft)}
   .connection.is-offline{color:var(--red);border-color:#f2aaa3;background:var(--red-soft)}
+  .icon-btn{
+    width:var(--tap);
+    height:var(--tap);
+    border-radius:999px;
+    display:grid;
+    place-items:center;
+    color:var(--blue);
+    background:var(--panel);
+    border:1px solid var(--line);
+    box-shadow:0 8px 24px rgba(16,32,29,.08);
+    cursor:pointer;
+  }
+  .activity-button{
+    width:auto;
+    min-width:var(--tap);
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.35rem;
+    padding:0 .72rem;
+    border-radius:var(--radius);
+    color:var(--blue);
+    font-size:.86rem;
+    font-weight:850;
+    white-space:nowrap;
+  }
   .icon{width:1.1rem;height:1.1rem;display:inline-block;vertical-align:-.18em}
   .icon-lg{width:1.4rem;height:1.4rem}
   .status-strip{display:flex;gap:.45rem;overflow-x:auto;padding:.7rem .05rem .1rem;scrollbar-width:none}
@@ -239,9 +265,101 @@
     font-size:1.06rem;
     font-variant-numeric:tabular-nums;
   }
+  .setpoint-status{
+    display:flex;
+    justify-content:space-between;
+    gap:.5rem;
+    flex-wrap:wrap;
+    color:var(--muted);
+    font-size:.78rem;
+    line-height:1.3;
+  }
+  .setpoint-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:.42rem;
+  }
+  .setpoint-actions .btn{font-size:.86rem}
   .toast{min-height:1.35rem;color:var(--muted);font-size:.84rem;line-height:1.35}
   .toast.ok{color:var(--green)}
   .toast.err{color:var(--red)}
+  .activity-backdrop{
+    position:fixed;
+    inset:0;
+    z-index:50;
+    display:none;
+    background:rgba(23,32,38,.34);
+  }
+  .activity-backdrop.is-open{display:block}
+  .activity-panel{
+    position:fixed;
+    top:0;
+    right:0;
+    z-index:60;
+    width:min(100%,34rem);
+    height:100dvh;
+    display:none;
+    grid-template-rows:auto auto minmax(0,1fr);
+    background:var(--panel);
+    border-left:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .activity-panel.is-open{display:grid}
+  .activity-head{
+    min-height:4rem;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:.75rem;
+    padding:.8rem .9rem;
+    border-bottom:1px solid var(--line);
+  }
+  .activity-head h2{display:flex;align-items:center;gap:.42rem}
+  .activity-tools{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:.7rem;
+    padding:.65rem .9rem;
+    border-bottom:1px solid var(--line);
+    background:var(--panel-soft);
+  }
+  .toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:.45rem;
+    color:var(--muted);
+    font-size:.84rem;
+    font-weight:750;
+  }
+  .toggle input{width:1rem;height:1rem;accent-color:var(--blue)}
+  .activity-list{overflow:auto}
+  .activity-empty{padding:1rem;color:var(--muted);font-size:.9rem;line-height:1.4}
+  .activity-item{
+    display:grid;
+    gap:.48rem;
+    padding:.82rem .9rem;
+    border-bottom:1px solid var(--line);
+  }
+  .activity-main{display:flex;align-items:flex-start;justify-content:space-between;gap:.7rem}
+  .activity-title{min-width:0;color:var(--ink);font-weight:830;line-height:1.28;overflow-wrap:anywhere}
+  .activity-time{flex:0 0 auto;color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}
+  .activity-meta{display:flex;gap:.35rem;flex-wrap:wrap}
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    min-height:1.45rem;
+    padding:.12rem .45rem;
+    border:1px solid var(--line);
+    border-radius:999px;
+    background:var(--panel-soft);
+    color:var(--muted);
+    font-size:.72rem;
+    font-weight:800;
+  }
+  .pill.ok{border-color:#a6d8c1;background:var(--green-soft);color:var(--green)}
+  .pill.blocked,.pill.error{border-color:#efaaa4;background:var(--red-soft);color:var(--red)}
+  .activity-detail{margin:0;color:var(--muted);font-size:.78rem;line-height:1.35;overflow-wrap:anywhere}
   .data-card{overflow:hidden}
   .list{display:grid}
   .row{
@@ -324,6 +442,7 @@
         <p class="eyebrow">Wohnraumlüftung</p>
         <h1>Nilan CTS600</h1>
       </div>
+      <button id="activity-open" class="icon-btn activity-button" type="button" aria-label="Aktivitätslog öffnen" title="Aktivitätslog"></button>
       <div id="connection" class="connection" aria-label="Verbindungsstatus"></div>
     </div>
     <div id="badges" class="status-strip" aria-live="polite"></div>
@@ -379,6 +498,19 @@
   </main>
 </div>
 
+<div id="activity-backdrop" class="activity-backdrop"></div>
+<aside id="activity-panel" class="activity-panel" aria-labelledby="activity-title" aria-hidden="true">
+  <div class="activity-head">
+    <h2 id="activity-title"></h2>
+    <button id="activity-close" class="icon-btn" type="button" aria-label="Aktivitätslog schließen" title="Schließen"></button>
+  </div>
+  <div class="activity-tools">
+    <label class="toggle"><input id="activity-reads" type="checkbox"> Status-Abfragen</label>
+    <button id="activity-refresh" class="btn" type="button"></button>
+  </div>
+  <div id="activity-list" class="activity-list" aria-live="polite"></div>
+</aside>
+
 <script>
 const POLL_FALLBACK = 5000;
 let META = null;
@@ -386,6 +518,8 @@ let LAST_STATUS = null;
 let pollMs = POLL_FALLBACK;
 let timer = null;
 let commandBusy = false;
+let activityOpen = false;
+let pendingSetpoint = null;
 
 const iconPaths = {
   connected: '<path d="M5 12.5a9 9 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M12 20h.01"/>',
@@ -400,6 +534,7 @@ const iconPaths = {
   unlock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/>',
   minus: '<path d="M5 12h14"/>',
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   raw: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
   sensor: '<path d="M12 2v3"/><path d="M12 19v3"/><path d="M4.22 4.22l2.12 2.12"/><path d="m17.66 17.66 2.12 2.12"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="m4.22 19.78 2.12-2.12"/><path d="m17.66 6.34 2.12-2.12"/><circle cx="12" cy="12" r="4"/>'
 };
@@ -556,6 +691,40 @@ function controlsLocked(){
   return !META || !!META.read_only || !LAST_STATUS || !LAST_STATUS.connected || commandBusy;
 }
 
+function setpointConfig(){
+  const cfg = META?.controls?.setpoint || {min:5,max:30,unit:unitFor("setpoint") || "C"};
+  return {
+    min: Number.isFinite(Number(cfg.min)) ? Number(cfg.min) : 5,
+    max: Number.isFinite(Number(cfg.max)) ? Number(cfg.max) : 30,
+    unit: cfg.unit || unitFor("setpoint") || "C"
+  };
+}
+
+function liveSetpoint(){
+  const value = Number(LAST_STATUS?.setpoint);
+  return Number.isFinite(value) ? value : null;
+}
+
+function activeSetpoint(){
+  return pendingSetpoint !== null ? pendingSetpoint : liveSetpoint();
+}
+
+function clampSetpoint(value){
+  const cfg = setpointConfig();
+  return Math.min(cfg.max, Math.max(cfg.min, value));
+}
+
+function setpointDirty(){
+  const live = liveSetpoint();
+  return pendingSetpoint !== null && pendingSetpoint !== live;
+}
+
+function reconcilePendingSetpoint(){
+  if (commandBusy || pendingSetpoint === null) return;
+  const live = liveSetpoint();
+  if (live !== null && live === pendingSetpoint) pendingSetpoint = null;
+}
+
 function renderControlState(){
   const ro = !!META?.read_only;
   const offline = LAST_STATUS && !LAST_STATUS.connected;
@@ -574,7 +743,7 @@ function renderControlState(){
     stateClass = "bad";
   } else if (!locked){
     title = "Steuerung aktiv";
-    detail = "Änderungen werden direkt an die API gesendet. Moduswechsel und Ausschalten müssen bestätigt werden.";
+    detail = "Lüfter und Modus werden direkt gesendet. Die Solltemperatur wird lokal gewählt und erst mit Speichern geschrieben.";
     stateIcon = "unlock";
     stateClass = "info";
   }
@@ -584,6 +753,7 @@ function renderControlState(){
 }
 
 function renderControls(){
+  reconcilePendingSetpoint();
   renderControlState();
   const locked = controlsLocked();
   const fanCfg = META?.controls?.fan || {min:0,max:4,off_level:0};
@@ -603,9 +773,14 @@ function renderControls(){
     return '<button class="btn' + (active ? " is-active" : "") + (danger ? " is-danger" : "") + '" type="button" data-action="mode" data-value="' + esc(mode) + '"' + (locked ? " disabled" : "") + '>' + esc(modeLabel(mode)) + '</button>';
   }).join("");
 
-  const spCfg = META?.controls?.setpoint || {min:5,max:30,unit:unitFor("setpoint") || "C"};
-  const spUnit = spCfg.unit || unitFor("setpoint");
-  const spText = formatValue(LAST_STATUS?.setpoint, spUnit) || "–";
+  const spCfg = setpointConfig();
+  const spText = formatValue(activeSetpoint(), spCfg.unit) || "–";
+  const liveText = formatValue(liveSetpoint(), spCfg.unit) || "–";
+  const pendingText = pendingSetpoint !== null ? formatValue(pendingSetpoint, spCfg.unit) : null;
+  const dirty = setpointDirty();
+  const stepperLocked = locked || commandBusy;
+  const saveDisabled = locked || !dirty;
+  const resetDisabled = commandBusy || pendingSetpoint === null;
   $("controls").innerHTML =
     '<div class="control-group">'
       + '<div class="control-label"><span>' + icon("fan") + esc(labelFor("fan_level")) + '</span><span class="inline-tag">' + esc(formatValue(LAST_STATUS?.fan_level, unitFor("fan_level")) || "–") + '</span></div>'
@@ -616,11 +791,16 @@ function renderControls(){
       + '<div class="segmented">' + modeButtons + '</div>'
     + '</div>'
     + '<div class="control-group">'
-      + '<div class="control-label"><span>' + icon("target") + esc(labelFor("setpoint")) + '</span><span class="inline-tag">' + esc((spCfg.min ?? "–") + "–" + (spCfg.max ?? "–") + " " + spUnit) + '</span></div>'
+      + '<div class="control-label"><span>' + icon("target") + esc(labelFor("setpoint")) + '</span><span class="inline-tag">' + esc(spCfg.min + "–" + spCfg.max + " " + spCfg.unit) + '</span></div>'
       + '<div class="stepper">'
-        + '<button class="btn" type="button" data-action="setpoint" data-delta="-1"' + (locked ? " disabled" : "") + ' aria-label="Solltemperatur senken">' + icon("minus") + '</button>'
+        + '<button class="btn" type="button" data-action="setpoint" data-delta="-1"' + (stepperLocked ? " disabled" : "") + ' aria-label="Solltemperatur senken">' + icon("minus") + '</button>'
         + '<div class="stepper-value">' + esc(spText) + '</div>'
-        + '<button class="btn" type="button" data-action="setpoint" data-delta="1"' + (locked ? " disabled" : "") + ' aria-label="Solltemperatur erhöhen">' + icon("plus") + '</button>'
+        + '<button class="btn" type="button" data-action="setpoint" data-delta="1"' + (stepperLocked ? " disabled" : "") + ' aria-label="Solltemperatur erhöhen">' + icon("plus") + '</button>'
+      + '</div>'
+      + '<div class="setpoint-status"><span>Live: ' + esc(liveText) + '</span><span>' + esc(dirty ? "Ausstehend: " + pendingText : "gespeichert") + '</span></div>'
+      + '<div class="setpoint-actions">'
+        + '<button class="btn" type="button" data-action="setpoint-save"' + (saveDisabled ? " disabled" : "") + '>Speichern</button>'
+        + '<button class="btn" type="button" data-action="setpoint-reset"' + (resetDisabled ? " disabled" : "") + '>Zurücksetzen</button>'
       + '</div>'
     + '</div>';
 }
@@ -668,6 +848,86 @@ function toast(message, kind){
   t.textContent = message || "";
 }
 
+function formatActivityTime(event){
+  const d = new Date(event.timestamp || (event.ts ? event.ts * 1000 : Date.now()));
+  if (Number.isNaN(d.getTime())) return "–";
+  return d.toLocaleTimeString("de-AT", {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+}
+
+function formatActivityAction(event){
+  const names = {
+    set_fan:"Lüfter gesetzt",
+    set_mode:"Modus gesetzt",
+    set_temp:"Solltemperatur gesetzt",
+    command:"MQTT-Befehl",
+    status_poll:"Status abgefragt"
+  };
+  return names[event.action_type] || event.action_type || "Aktivität";
+}
+
+function formatActivitySafety(value){
+  return value === "read_only" ? "read-only" : "Schreiben aktiv";
+}
+
+function activityValueText(value){
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "object"){
+    try{ return JSON.stringify(value); }catch(e){ return String(value); }
+  }
+  return String(value);
+}
+
+function renderActivity(data){
+  const events = data?.events || [];
+  const list = $("activity-list");
+  if (!events.length){
+    list.innerHTML = '<div class="activity-empty">Keine Einträge für den aktuellen Filter.</div>';
+    return;
+  }
+  list.innerHTML = events.map(event => {
+    const result = event.result || "ok";
+    const resultLabel = {ok:"ok", blocked:"blockiert", error:"Fehler"}[result] || result;
+    const count = event.count ? " · " + event.count + "x" : "";
+    const detail = [
+      activityValueText(event.value),
+      event.detail
+    ].filter(Boolean).join(" · ");
+    return '<article class="activity-item">'
+      + '<div class="activity-main">'
+        + '<div class="activity-title">' + esc(formatActivityAction(event)) + ' <span class="row-desc">' + esc(event.target || "–") + count + '</span></div>'
+        + '<time class="activity-time">' + esc(formatActivityTime(event)) + '</time>'
+      + '</div>'
+      + '<div class="activity-meta">'
+        + '<span class="pill">' + esc(event.actor || event.source || "system") + '</span>'
+        + '<span class="pill ' + esc(result) + '">' + esc(resultLabel) + '</span>'
+        + '<span class="pill">' + esc(formatActivitySafety(event.safety_state)) + '</span>'
+      + '</div>'
+      + (detail ? '<p class="activity-detail">' + esc(detail) + '</p>' : '')
+    + '</article>';
+  }).join("");
+}
+
+async function loadActivity(){
+  if (!activityOpen) return;
+  const includeReads = $("activity-reads").checked;
+  $("activity-list").innerHTML = '<div class="activity-empty">Aktivitäten werden geladen...</div>';
+  try{
+    const response = await fetch("api/activity?limit=100&include_reads=" + encodeURIComponent(includeReads), {cache:"no-store"});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    renderActivity(await response.json());
+  }catch(e){
+    $("activity-list").innerHTML = '<div class="activity-empty">Aktivitätslog nicht erreichbar: ' + esc(e.message) + '</div>';
+  }
+}
+
+function setActivityOpen(open){
+  activityOpen = open;
+  $("activity-backdrop").className = "activity-backdrop" + (open ? " is-open" : "");
+  $("activity-panel").className = "activity-panel" + (open ? " is-open" : "");
+  $("activity-panel").setAttribute("aria-hidden", open ? "false" : "true");
+  if (open) loadActivity();
+}
+
 async function sendCommand(path, body, label){
   if (commandBusy || controlsLocked()) return;
   commandBusy = true;
@@ -689,9 +949,17 @@ async function sendCommand(path, body, label){
   }finally{
     commandBusy = false;
     renderControls();
+    loadActivity();
     clearTimeout(timer);
     poll();
   }
+}
+
+function savePendingSetpoint(){
+  if (commandBusy || controlsLocked()) return;
+  const next = pendingSetpoint;
+  if (next === null || next === liveSetpoint()) return;
+  sendCommand("api/temp", {setpoint:next}, labelFor("setpoint") + " " + formatValue(next, setpointConfig().unit));
 }
 
 function handleControlClick(event){
@@ -710,12 +978,22 @@ function handleControlClick(event){
     sendCommand("api/mode", {mode}, labelFor("mode") + " " + modeLabel(mode));
   }
   if (action === "setpoint"){
-    const current = Number(LAST_STATUS?.setpoint);
-    if (!Number.isFinite(current)){ toast("Kein aktueller Sollwert bekannt.", "err"); return; }
-    const cfg = META?.controls?.setpoint || {min:5,max:30};
-    const next = Math.min(Number(cfg.max), Math.max(Number(cfg.min), current + parseInt(btn.dataset.delta, 10)));
+    const current = activeSetpoint();
+    if (current === null){ toast("Kein aktueller Sollwert bekannt.", "err"); return; }
+    const cfg = setpointConfig();
+    const next = clampSetpoint(current + parseInt(btn.dataset.delta, 10));
     if (next === current){ toast("Grenze erreicht (" + cfg.min + "–" + cfg.max + " " + (cfg.unit || unitFor("setpoint")) + ")."); return; }
-    sendCommand("api/temp", {setpoint:next}, labelFor("setpoint") + " " + formatValue(next, cfg.unit || unitFor("setpoint")));
+    pendingSetpoint = next;
+    renderControls();
+    toast(labelFor("setpoint") + " " + formatValue(next, cfg.unit) + " vorgemerkt. Speichern sendet den finalen Wert einmal.");
+  }
+  if (action === "setpoint-save"){
+    savePendingSetpoint();
+  }
+  if (action === "setpoint-reset"){
+    pendingSetpoint = null;
+    renderControls();
+    toast("Ausstehende Solltemperatur verworfen.");
   }
 }
 
@@ -734,6 +1012,18 @@ async function poll(){
 }
 
 $("controls").addEventListener("click", handleControlClick);
+$("activity-open").innerHTML = icon("raw") + "<span>Log</span>";
+$("activity-close").innerHTML = icon("close", "icon-lg");
+$("activity-title").innerHTML = icon("raw") + " Aktivitätslog";
+$("activity-refresh").innerHTML = icon("raw") + " Aktualisieren";
+$("activity-open").addEventListener("click", () => setActivityOpen(true));
+$("activity-close").addEventListener("click", () => setActivityOpen(false));
+$("activity-backdrop").addEventListener("click", () => setActivityOpen(false));
+$("activity-refresh").addEventListener("click", loadActivity);
+$("activity-reads").addEventListener("change", loadActivity);
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && activityOpen) setActivityOpen(false);
+});
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && timer){
     clearTimeout(timer);
